@@ -55,12 +55,24 @@ export default function AppLayoutComponent({ children }: AppLayoutProps) {
     { href: '/settings', label: 'Settings', icon: Settings, tooltip: 'Account settings' },
   ];
 
-  if (loading || (!user && firebaseReady)) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <Loader2 className="h-16 w-16 animate-spin text-primary" />
-      </div>
-    );
+  if (loading || (!user && firebaseReady && pathname !== '/')) { // ensure login page doesn't show main loader if firebase is ready but no user
+    // This loader is for when auth state is genuinely loading, or if firebase is ready but user is null (and not on login page)
+    // Avoids flash of AppLayout loader when redirecting to login.
+    if (firebaseReady && !user && pathname !== '/') {
+         // This case should be handled by the useEffect redirect, but as a safeguard:
+        return (
+          <div className="flex min-h-screen items-center justify-center bg-background">
+             <Loader2 className="h-16 w-16 animate-spin text-primary" />
+          </div>
+        );
+    }
+    if(loading) {
+        return (
+          <div className="flex min-h-screen items-center justify-center bg-background">
+            <Loader2 className="h-16 w-16 animate-spin text-primary" />
+          </div>
+        );
+    }
   }
   
   // If firebase is not configured, show a message or limited UI
@@ -74,7 +86,7 @@ export default function AppLayoutComponent({ children }: AppLayoutProps) {
             Firebase environment variables are set up correctly in a <code>.env.local</code> file.
             Refer to <code>.env.local.example</code> for the required variables.
           </p>
-          <Button onClick={() => router.push('/')} className="mt-6">Go to Fallback Page</Button>
+          <Button onClick={() => router.push('/')} className="mt-6">Go to Login Page</Button>
         </div>
       </div>
     );
@@ -137,3 +149,4 @@ export default function AppLayoutComponent({ children }: AppLayoutProps) {
     </SidebarProvider>
   );
 }
+
