@@ -1,23 +1,97 @@
+
 'use client';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Briefcase, UserPlus } from "lucide-react";
+import { Briefcase, UserPlus, AlertTriangle } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from 'next/navigation';
 import Image from "next/image";
+import React, { useState, useEffect } from "react";
+import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
+import { auth, isFirebaseConfigured } from "@/lib/firebase/client";
+import { useToast } from "@/components/ui/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
+import { createUserProfile } from "@/services/firestoreService";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+
 
 export default function RegisterPage() {
   const router = useRouter();
+  const { toast } = useToast();
+  const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { user, loading: authLoading } = useAuth();
 
-  const handleRegister = (event: React.FormEvent) => {
+  useEffect(() => {
+    if (!authLoading && user) {
+      router.push('/dashboard');
+    }
+  }, [user, authLoading, router]);
+
+  const handleRegister = async (event: React.FormEvent) => {
     event.preventDefault();
-    // TODO: Implement actual registration logic
-    // On successful registration:
-    // toast({ title: "Account Created!", description: "Welcome to LexAid Nigeria.", variant: "default" });
-    router.push('/dashboard'); 
+    setError(null);
+
+    if (!isFirebaseConfigured) {
+      setError("Firebase is not configured. Please contact support.");
+      toast({
+        title: "Configuration Error",
+        description: "Firebase is not configured. Registration is disabled.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError("Passwords do not match.");
+      toast({
+        title: "Registration Error",
+        description: "Passwords do not match.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      if (userCredential.user) {
+        await updateProfile(userCredential.user, { displayName: fullName });
+        // Create a user profile document in Firestore
+        await createUserProfile(userCredential.user);
+      }
+      toast({ 
+        title: "Account Created!", 
+        description: "Welcome to LexAid Nigeria. Redirecting to dashboard...", 
+        variant: "default" 
+      });
+      router.push('/dashboard'); 
+    } catch (e: any) {
+      setError(e.message || "Failed to create account. Please try again.");
+      toast({
+        title: "Registration Failed",
+        description: e.message || "Could not create account. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
+
+  if (authLoading || (!authLoading && user)) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-secondary via-background to-secondary p-4">
+        <Briefcase className="h-12 w-12 animate-spin text-primary" />
+      </div>
+    );
+  }
+
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-secondary via-background to-secondary p-4">
@@ -32,25 +106,86 @@ export default function RegisterPage() {
           <CardDescription className="text-muted-foreground">Get started with AI-powered legal assistance.</CardDescription>
         </CardHeader>
         <CardContent className="px-6 pb-6">
+          {!isFirebaseConfigured && (
+             <Alert variant="destructive" className="mb-4">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                Authentication is currently unavailable. Please contact support.
+              </AlertDescription>
+            </Alert>
+          )}
+          {error && (
+             <Alert variant="destructive" className="mb-4">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                {error}
+              </AlertDescription>
+            </Alert>
+          )}
           <form onSubmit={handleRegister} className="space-y-5">
             <div className="space-y-2">
               <Label htmlFor="fullName">Full Name</Label>
-              <Input id="fullName" type="text" placeholder="Barrister Tunde Ednut" required className="bg-background border-border focus:border-primary"/>
+              <Input 
+                id="fullName" 
+                type="text" 
+                placeholder="Barrister Tunde Ednut" 
+                required 
+                className="bg-background border-border focus:border-primary"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                disabled={isLoading || !isFirebaseConfigured}
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="email">Email Address</Label>
-              <Input id="email" type="email" placeholder="lawyer@example.com" required className="bg-background border-border focus:border-primary"/>
+              <Input 
+                id="email" 
+                type="email" 
+                placeholder="lawyer@example.com" 
+                required 
+                className="bg-background border-border focus:border-primary"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={isLoading || !isFirebaseConfigured}
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
-              <Input id="password" type="password" placeholder="••••••••" required className="bg-background border-border focus:border-primary"/>
+              <Input 
+                id="password" 
+                type="password" 
+                placeholder="••••••••" 
+                required 
+                className="bg-background border-border focus:border-primary"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={isLoading || !isFirebaseConfigured}
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="confirmPassword">Confirm Password</Label>
-              <Input id="confirmPassword" type="password" placeholder="••••••••" required className="bg-background border-border focus:border-primary"/>
+              <Input 
+                id="confirmPassword" 
+                type="password" 
+                placeholder="••••••••" 
+                required 
+                className="bg-background border-border focus:border-primary"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                disabled={isLoading || !isFirebaseConfigured}
+              />
             </div>
-            <Button type="submit" className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-3 text-base">
-              <UserPlus className="mr-2 h-5 w-5" /> Create Account
+            <Button 
+              type="submit" 
+              className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-3 text-base"
+              disabled={isLoading || !isFirebaseConfigured}
+            >
+              {isLoading ? (
+                <Briefcase className="mr-2 h-5 w-5 animate-spin" />
+              ) : (
+                 <UserPlus className="mr-2 h-5 w-5" />
+              )}
+              Create Account
             </Button>
           </form>
         </CardContent>

@@ -1,21 +1,79 @@
+
 'use client';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Briefcase, LogIn } from "lucide-react";
+import { Briefcase, LogIn, AlertTriangle } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from 'next/navigation';
 import Image from "next/image";
+import React, { useState, useEffect } from "react";
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { auth, isFirebaseConfigured } from "@/lib/firebase/client";
+import { useToast } from "@/components/ui/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+
 
 export default function LoginPage() {
   const router = useRouter();
+  const { toast } = useToast();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { user, loading: authLoading } = useAuth();
 
-  const handleLogin = (event: React.FormEvent) => {
+ useEffect(() => {
+    if (!authLoading && user) {
+      router.push('/dashboard');
+    }
+  }, [user, authLoading, router]);
+
+
+  const handleLogin = async (event: React.FormEvent) => {
     event.preventDefault();
-    // TODO: Implement actual login logic
-    router.push('/dashboard');
+    setError(null);
+
+    if (!isFirebaseConfigured) {
+      setError("Firebase is not configured. Please contact support.");
+      toast({
+        title: "Configuration Error",
+        description: "Firebase is not configured. Login is disabled.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+      toast({
+        title: "Login Successful",
+        description: "Welcome back!",
+      });
+      router.push('/dashboard');
+    } catch (e: any) {
+      setError(e.message || "Failed to sign in. Please check your credentials.");
+      toast({
+        title: "Login Failed",
+        description: e.message || "Please check your credentials and try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
+
+  if (authLoading || (!authLoading && user)) {
+     return (
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-secondary via-background to-secondary p-4">
+        <Briefcase className="h-12 w-12 animate-spin text-primary" /> {/* Using Briefcase as a loader icon */}
+      </div>
+    );
+  }
+
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-secondary via-background to-secondary p-4">
@@ -30,26 +88,65 @@ export default function LoginPage() {
           <CardDescription className="text-muted-foreground">Sign in to continue your legal work.</CardDescription>
         </CardHeader>
         <CardContent className="px-6 pb-6">
+          {!isFirebaseConfigured && (
+             <Alert variant="destructive" className="mb-4">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                Authentication is currently unavailable. Please contact support.
+              </AlertDescription>
+            </Alert>
+          )}
+          {error && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                {error}
+              </AlertDescription>
+            </Alert>
+          )}
           <form onSubmit={handleLogin} className="space-y-6">
             <div className="space-y-2">
               <Label htmlFor="email">Email Address</Label>
-              <Input id="email" type="email" placeholder="lawyer@example.com" required className="bg-background border-border focus:border-primary"/>
+              <Input 
+                id="email" 
+                type="email" 
+                placeholder="lawyer@example.com" 
+                required 
+                className="bg-background border-border focus:border-primary"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={isLoading || !isFirebaseConfigured}
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
-              <Input id="password" type="password" placeholder="••••••••" required className="bg-background border-border focus:border-primary"/>
+              <Input 
+                id="password" 
+                type="password" 
+                placeholder="••••••••" 
+                required 
+                className="bg-background border-border focus:border-primary"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={isLoading || !isFirebaseConfigured}
+              />
             </div>
             <div className="flex items-center justify-between text-sm">
-              {/* <div className="flex items-center space-x-2">
-                <Checkbox id="remember-me" />
-                <Label htmlFor="remember-me" className="font-normal">Remember me</Label>
-              </div> */}
               <Link href="#" className="text-primary hover:underline">
                 Forgot password?
               </Link>
             </div>
-            <Button type="submit" className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-3 text-base">
-              <LogIn className="mr-2 h-5 w-5" /> Sign In
+            <Button 
+              type="submit" 
+              className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-3 text-base"
+              disabled={isLoading || !isFirebaseConfigured}
+            >
+              {isLoading ? (
+                <Briefcase className="mr-2 h-5 w-5 animate-spin" />
+              ) : (
+                <LogIn className="mr-2 h-5 w-5" />
+              )}
+               Sign In
             </Button>
           </form>
         </CardContent>

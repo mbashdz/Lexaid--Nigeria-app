@@ -1,3 +1,4 @@
+
 // src/app/draft/[documentSlug]/page.tsx
 'use client';
 
@@ -20,12 +21,15 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useAuth } from '@/contexts/AuthContext';
+import { addDraft } from '@/services/firestoreService';
 
 
 export default function DraftPage() {
   const params = useParams();
   const router = useRouter();
   const { toast } = useToast();
+  const { user, isFirebaseConfigured: firebaseReady } = useAuth();
   const documentSlug = params.documentSlug as string;
 
   const [generatedDocument, setGeneratedDocument] = useState<string | null>(null);
@@ -34,6 +38,7 @@ export default function DraftPage() {
   const [suggestedCitations, setSuggestedCitations] = useState<string[] | null>(null);
   const [isDrafting, setIsDrafting] = useState(false);
   const [isSuggestingCitations, setIsSuggestingCitations] = useState(false);
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [documentTypeConfig, setDocumentTypeConfig] = useState(DOCUMENT_TYPES.find(doc => doc.id === documentSlug));
 
   useEffect(() => {
@@ -167,25 +172,48 @@ export default function DraftPage() {
   };
 
 
-  const handleSaveDraft = () => {
+  const handleSaveDraft = async () => {
+    if (!user) {
+      toast({ title: "Authentication Required", description: "Please log in to save drafts.", variant: "destructive" });
+      return;
+    }
+    if (!firebaseReady) {
+      toast({ title: "Service Unavailable", description: "Cannot save draft. Firebase not configured.", variant: "destructive" });
+      return;
+    }
+
     const contentToSave = isEditing ? editedContent : generatedDocument;
-    if (!contentToSave) return;
-    // In a real app, this would send the data to a backend.
-    console.log("Saving draft:", contentToSave);
-    toast({
-      title: "Draft Saved (Simulated)",
-      description: "Your document draft has been saved successfully.",
-      variant: "default"
-    });
+    if (!contentToSave) {
+      toast({ title: "No Content", description: "There is no document content to save.", variant: "destructive" });
+      return;
+    }
+
+    setIsSavingDraft(true);
+    try {
+      await addDraft(user.uid, documentTypeConfig.name, documentTypeConfig.name, contentToSave);
+      toast({
+        title: "Draft Saved!",
+        description: "Your document draft has been saved successfully to your account.",
+        variant: "default"
+      });
+    } catch (error) {
+      console.error("Error saving draft:", error);
+      toast({
+        title: "Save Failed",
+        description: (error as Error).message || "Could not save the draft. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSavingDraft(false);
+    }
   };
   
   const toggleEditMode = () => {
-    if (isEditing) { // If currently editing, it means user clicked "Cancel" or "Save" effectively
-        // If user was editing and clicks "Edit" again, it means they want to discard current edits and start over from `generatedDocument`
+    if (isEditing) { 
         if (generatedDocument) {
             setEditedContent(generatedDocument);
         }
-    } else { // If not editing, and generatedDocument exists, prepare for editing
+    } else { 
         if (generatedDocument) {
             setEditedContent(generatedDocument);
         }
@@ -194,13 +222,13 @@ export default function DraftPage() {
 };
 
   const handleSaveEdits = () => {
-    setGeneratedDocument(editedContent); // Persist edits to the main display
+    setGeneratedDocument(editedContent); 
     setIsEditing(false);
-    toast({ title: "Edits Saved", description: "Your changes to the document have been applied." });
+    toast({ title: "Edits Applied", description: "Your changes to the document have been applied locally. Save draft to persist them." });
   };
 
   const handleCancelEdits = () => {
-    setEditedContent(generatedDocument || ''); // Reset to original generated document (or empty if none)
+    setEditedContent(generatedDocument || ''); 
     setIsEditing(false);
     toast({ title: "Edits Cancelled", description: "Your changes have been discarded.", variant: "destructive" });
   };
@@ -273,7 +301,16 @@ export default function DraftPage() {
                             </DropdownMenuContent>
                         </DropdownMenu>
                       <Button variant="outline" size="sm" onClick={toggleEditMode} disabled={!generatedDocument} className="shadow-sm"><Edit3 className="mr-2 h-4 w-4" /> Edit</Button>
-                      <Button variant="outline" size="sm" onClick={handleSaveDraft} disabled={!generatedDocument} className="shadow-sm"><Save className="mr-2 h-4 w-4" /> Save Draft</Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={handleSaveDraft} 
+                        disabled={!generatedDocument || isSavingDraft || !firebaseReady} 
+                        className="shadow-sm"
+                      >
+                        {isSavingDraft ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />} 
+                        Save Draft
+                      </Button>
                     </div>
                   )}
                 </div>
@@ -289,7 +326,7 @@ export default function DraftPage() {
                       placeholder="Edit your document here..."
                     />
                     <div className="flex gap-2 mt-4">
-                      <Button onClick={handleSaveEdits} className="bg-primary hover:bg-primary/90 text-primary-foreground"><Save className="mr-2 h-4 w-4" /> Save Edits</Button>
+                      <Button onClick={handleSaveEdits} className="bg-primary hover:bg-primary/90 text-primary-foreground"><Save className="mr-2 h-4 w-4" /> Apply Edits</Button>
                       <Button variant="outline" onClick={handleCancelEdits}><XCircle className="mr-2 h-4 w-4" /> Cancel</Button>
                     </div>
                   </>
