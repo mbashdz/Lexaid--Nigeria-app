@@ -1,3 +1,4 @@
+// src/app/draft/[documentSlug]/page.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -9,10 +10,16 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { draftLegalDocument, type DraftLegalDocumentInput } from '@/ai/flows/draft-legal-document';
 import { suggestRelevantCitations, type SuggestRelevantCitationsInput, type SuggestRelevantCitationsOutput } from '@/ai/flows/suggest-relevant-citations';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Sparkles, BookOpen, Loader2, Download, Edit3, FileText as FileIcon, AlertTriangle, Save, XCircle } from 'lucide-react';
+import { ArrowLeft, Sparkles, BookOpen, Loader2, Download, Edit3, FileText as FileIcon, AlertTriangle, Save, XCircle, ChevronDown } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 
 export default function DraftPage() {
@@ -74,7 +81,7 @@ export default function DraftPage() {
     try {
       const result = await draftLegalDocument(aiInput);
       setGeneratedDocument(result.draftDocument);
-      setEditedContent(result.draftDocument); // Initialize editedContent
+      setEditedContent(result.draftDocument); 
       toast({
         title: "Document Drafted!",
         description: "Your legal document has been generated successfully.",
@@ -129,9 +136,10 @@ export default function DraftPage() {
     }
   };
 
-  const handleExportDocument = () => {
-    if (!generatedDocument) return;
-    const blob = new Blob([isEditing ? editedContent : generatedDocument], { type: 'text/plain;charset=utf-8' });
+  const handleExportAsTxt = () => {
+    const contentToExport = isEditing ? editedContent : generatedDocument;
+    if (!contentToExport) return;
+    const blob = new Blob([contentToExport], { type: 'text/plain;charset=utf-8' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
     link.download = `${documentTypeConfig.name.replace(/\s+/g, '_')}_${new Date().toISOString()}.txt`;
@@ -139,13 +147,31 @@ export default function DraftPage() {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(link.href);
-    toast({ title: "Document Exported", description: "The document has been downloaded." });
+    toast({ title: "Document Exported as TXT", description: "The document has been downloaded." });
   };
 
+  const handleExportAsDocx = () => {
+    toast({
+      title: "Export as DOCX (Coming Soon)",
+      description: "This feature is under development and will be available soon.",
+      variant: "default",
+    });
+  };
+
+  const handleExportAsPdf = () => {
+    toast({
+      title: "Export as PDF (Coming Soon)",
+      description: "This feature is under development and will be available soon.",
+      variant: "default",
+    });
+  };
+
+
   const handleSaveDraft = () => {
-    if (!generatedDocument) return;
-    // In a real app, this would send the data (isEditing ? editedContent : generatedDocument) to a backend.
-    console.log("Saving draft:", isEditing ? editedContent : generatedDocument);
+    const contentToSave = isEditing ? editedContent : generatedDocument;
+    if (!contentToSave) return;
+    // In a real app, this would send the data to a backend.
+    console.log("Saving draft:", contentToSave);
     toast({
       title: "Draft Saved (Simulated)",
       description: "Your document draft has been saved successfully.",
@@ -154,21 +180,27 @@ export default function DraftPage() {
   };
   
   const toggleEditMode = () => {
-    if (!generatedDocument) return;
-    if (!isEditing) {
-        setEditedContent(generatedDocument); // Ensure editor has latest content
+    if (isEditing) { // If currently editing, it means user clicked "Cancel" or "Save" effectively
+        // If user was editing and clicks "Edit" again, it means they want to discard current edits and start over from `generatedDocument`
+        if (generatedDocument) {
+            setEditedContent(generatedDocument);
+        }
+    } else { // If not editing, and generatedDocument exists, prepare for editing
+        if (generatedDocument) {
+            setEditedContent(generatedDocument);
+        }
     }
     setIsEditing(!isEditing);
-  };
+};
 
   const handleSaveEdits = () => {
-    setGeneratedDocument(editedContent);
+    setGeneratedDocument(editedContent); // Persist edits to the main display
     setIsEditing(false);
     toast({ title: "Edits Saved", description: "Your changes to the document have been applied." });
   };
 
   const handleCancelEdits = () => {
-    setEditedContent(generatedDocument || ''); // Reset to original generated document
+    setEditedContent(generatedDocument || ''); // Reset to original generated document (or empty if none)
     setIsEditing(false);
     toast({ title: "Edits Cancelled", description: "Your changes have been discarded.", variant: "destructive" });
   };
@@ -226,9 +258,20 @@ export default function DraftPage() {
                     <FileIcon className="h-6 w-6 text-primary"/>
                     <CardTitle className="text-2xl">{isEditing ? 'Editing Document' : 'Generated Document'}</CardTitle>
                   </div>
-                  {!isEditing && (
+                  {!isEditing && generatedDocument && (
                     <div className="flex gap-2">
-                      <Button variant="outline" size="sm" onClick={handleExportDocument} disabled={!generatedDocument} className="shadow-sm"><Download className="mr-2 h-4 w-4" /> Export</Button>
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="outline" size="sm" disabled={!generatedDocument} className="shadow-sm">
+                                <Download className="mr-2 h-4 w-4" /> Export <ChevronDown className="ml-2 h-4 w-4" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={handleExportAsTxt}>Export as TXT</DropdownMenuItem>
+                                <DropdownMenuItem onClick={handleExportAsDocx}>Export as DOCX (Soon)</DropdownMenuItem>
+                                <DropdownMenuItem onClick={handleExportAsPdf}>Export as PDF (Soon)</DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
                       <Button variant="outline" size="sm" onClick={toggleEditMode} disabled={!generatedDocument} className="shadow-sm"><Edit3 className="mr-2 h-4 w-4" /> Edit</Button>
                       <Button variant="outline" size="sm" onClick={handleSaveDraft} disabled={!generatedDocument} className="shadow-sm"><Save className="mr-2 h-4 w-4" /> Save Draft</Button>
                     </div>
@@ -255,7 +298,7 @@ export default function DraftPage() {
                     <pre className="whitespace-pre-wrap text-sm text-foreground font-mono">{generatedDocument}</pre>
                   </ScrollArea>
                 )}
-                {!isEditing && (
+                {!isEditing && generatedDocument && (
                   <Button 
                     onClick={handleSuggestCitations} 
                     disabled={isSuggestingCitations || !generatedDocument} 
@@ -324,4 +367,3 @@ export default function DraftPage() {
     </div>
   );
 }
-
