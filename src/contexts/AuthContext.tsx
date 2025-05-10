@@ -5,13 +5,13 @@ import type { ReactNode } from 'react';
 import { createContext, useContext, useEffect, useState } from 'react';
 import type { User } from 'firebase/auth';
 import { onAuthStateChanged } from 'firebase/auth';
-import { auth, isFirebaseConfigured } from '@/lib/firebase/client';
+import { auth, isFirebaseConfigured as firebaseClientIsConfigured } from '@/lib/firebase/client'; // Renamed import
 import { Loader2 } from 'lucide-react';
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  isFirebaseConfigured: boolean;
+  isFirebaseConfigured: boolean; // Keep this name for the context value for consistency
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -21,7 +21,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!isFirebaseConfigured) {
+    if (!firebaseClientIsConfigured) { // Use the imported constant
       setLoading(false);
       return;
     }
@@ -32,9 +32,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     return () => unsubscribe();
-  }, []);
+  }, []); // firebaseClientIsConfigured is a module constant, no need to be in deps
 
-  if (loading && isFirebaseConfigured) {
+  if (loading && firebaseClientIsConfigured) { // Show loader only if configured and actually loading auth state
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -42,9 +42,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     );
   }
 
-
   return (
-    <AuthContext.Provider value={{ user, loading, isFirebaseConfigured }}>
+    <AuthContext.Provider value={{ user, loading, isFirebaseConfigured: firebaseClientIsConfigured }}>
       {children}
     </AuthContext.Provider>
   );
