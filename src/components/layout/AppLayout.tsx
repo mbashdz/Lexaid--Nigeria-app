@@ -2,10 +2,10 @@
 import type { ReactNode } from 'react';
 import { SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarFooter, SidebarTrigger, SidebarInset, SidebarMenu, SidebarMenuItem, SidebarMenuButton } from '@/components/ui/sidebar';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Home, Save, HelpCircle, Settings, LogOut, Briefcase, BookLock } from 'lucide-react';
+import { Home, Save, HelpCircle, Settings, LogOut, BookLock, CreditCard } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { usePathname, useRouter } from 'next/navigation'; // Import useRouter
+import { usePathname, useRouter } from 'next/navigation'; 
 import Image from 'next/image';
 
 interface AppLayoutProps {
@@ -14,7 +14,7 @@ interface AppLayoutProps {
 
 export default function AppLayoutComponent({ children }: AppLayoutProps) {
   const pathname = usePathname();
-  const router = useRouter(); // Initialize useRouter
+  const router = useRouter(); 
 
   const handleSignOut = () => {
     // TODO: Implement actual sign out logic
@@ -23,10 +23,11 @@ export default function AppLayoutComponent({ children }: AppLayoutProps) {
 
   const navItems = [
     { href: '/dashboard', label: 'Dashboard', icon: Home, tooltip: 'Dashboard' },
-    { href: '/drafts', label: 'Saved Drafts', icon: Save, tooltip: 'View your saved drafts', disabled: true },
-    { href: '/clauses', label: 'Clause Bank', icon: BookLock, tooltip: 'Manage custom clauses', disabled: true },
-    { href: '/help', label: 'Help & FAQs', icon: HelpCircle, tooltip: 'Get help and support', disabled: true },
-    { href: '/settings', label: 'Settings', icon: Settings, tooltip: 'Account settings', disabled: true },
+    { href: '/drafts', label: 'Saved Drafts', icon: Save, tooltip: 'View your saved drafts' },
+    { href: '/clauses', label: 'Clause Bank', icon: BookLock, tooltip: 'Manage custom clauses' },
+    { href: '/billing', label: 'Billing', icon: CreditCard, tooltip: 'Manage your subscription' },
+    { href: '/help', label: 'Help & FAQs', icon: HelpCircle, tooltip: 'Get help and support' },
+    { href: '/settings', label: 'Settings', icon: Settings, tooltip: 'Account settings' },
   ];
 
   return (
@@ -42,12 +43,10 @@ export default function AppLayoutComponent({ children }: AppLayoutProps) {
           <SidebarMenu>
             {navItems.map((item) => (
               <SidebarMenuItem key={item.href}>
-                <Link href={item.disabled ? "#" : item.href} legacyBehavior passHref>
+                <Link href={item.href} legacyBehavior passHref>
                   <SidebarMenuButton 
-                    isActive={!item.disabled && pathname === item.href} 
+                    isActive={pathname === item.href} 
                     tooltip={item.tooltip}
-                    disabled={item.disabled}
-                    className={item.disabled ? "cursor-not-allowed opacity-60" : ""}
                   >
                     <item.icon />
                     <span>{item.label}</span>
