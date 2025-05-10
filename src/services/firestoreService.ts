@@ -44,10 +44,13 @@ export interface UserProfile {
   uid: string;
   email: string | null;
   displayName: string | null;
+  photoURL?: string | null; // Added for Google Sign-In
   phoneNumber?: string;
   // Notification preferences can be added here
   emailNotifications?: boolean;
   inAppNotifications?: boolean;
+  createdAt?: Timestamp; // Added to track creation
+  lastModified?: Timestamp; // To track last update
 }
 
 
@@ -137,14 +140,43 @@ export async function getUserProfile(userId: string): Promise<UserProfile | null
 export async function createUserProfile(user: User): Promise<void> {
   if (!isFirebaseConfigured) throw new Error("Firebase not configured.");
   const userDocRef = doc(db, 'users', user.uid);
-  const userProfile: UserProfile = {
+  const docSnap = await getDoc(userDocRef);
+
+  const profileData: UserProfile = {
     uid: user.uid,
     email: user.email,
-    displayName: user.displayName || user.email?.split('@')[0] || 'New User', // Default display name
-    emailNotifications: true, // Default preferences
+    displayName: user.displayName || user.email?.split('@')[0] || 'New User',
+    photoURL: user.photoURL,
+    emailNotifications: true,
     inAppNotifications: true,
+    lastModified: serverTimestamp() as Timestamp,
   };
-  await setDoc(userDocRef, userProfile);
+
+  if (!docSnap.exists()) {
+    // New user, set createdAt
+    profileData.createdAt = serverTimestamp() as Timestamp;
+    await setDoc(userDocRef, profileData);
+  } else {
+    // Existing user, update relevant fields (e.g., displayName or photoURL might change via Google)
+    const existingData = docSnap.data() as UserProfile;
+    const updates: Partial<UserProfile> = { lastModified: serverTimestamp() as Timestamp };
+    if (user.displayName && user.displayName !== existingData.displayName) {
+        updates.displayName = user.displayName;
+    }
+    if (user.photoURL && user.photoURL !== existingData.photoURL) {
+        updates.photoURL = user.photoURL;
+    }
+     if (user.email && user.email !== existingData.email) { // Email might change if user verified a new one
+        updates.email = user.email;
+    }
+    // Only update if there are actual changes to displayName, photoURL, or email beyond lastModified
+    if (Object.keys(updates).length > 1) {
+        await updateDoc(userDocRef, updates);
+    } else {
+        // if only lastModified is to be updated (e.g. login event)
+        await updateDoc(userDocRef, { lastModified: serverTimestamp() as Timestamp });
+    }
+  }
 }
 
 export async function updateUserProfile(userId: string, data: Partial<UserProfile>): Promise<void> {
@@ -152,3 +184,4 @@ export async function updateUserProfile(userId: string, data: Partial<UserProfil
   const userDocRef = doc(db, 'users', userId);
   await updateDoc(userDocRef, { ...data, lastModified: serverTimestamp() });
 }
+
