@@ -9,9 +9,9 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { draftLegalDocument, type DraftLegalDocumentInput } from '@/ai/flows/draft-legal-document';
 import { suggestRelevantCitations, type SuggestRelevantCitationsInput, type SuggestRelevantCitationsOutput } from '@/ai/flows/suggest-relevant-citations';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Sparkles, BookOpen, Loader2, Download, Edit3, FileText as FileIcon, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Sparkles, BookOpen, Loader2, Download, Edit3, FileText as FileIcon, AlertTriangle, Save, XCircle } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
+import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 
@@ -22,6 +22,8 @@ export default function DraftPage() {
   const documentSlug = params.documentSlug as string;
 
   const [generatedDocument, setGeneratedDocument] = useState<string | null>(null);
+  const [editedContent, setEditedContent] = useState<string>('');
+  const [isEditing, setIsEditing] = useState<boolean>(false);
   const [suggestedCitations, setSuggestedCitations] = useState<string[] | null>(null);
   const [isDrafting, setIsDrafting] = useState(false);
   const [isSuggestingCitations, setIsSuggestingCitations] = useState(false);
@@ -33,20 +35,18 @@ export default function DraftPage() {
        if(config) {
          setDocumentTypeConfig(config);
        } else {
-        // Handle case where config is not found after initial client render
         toast({
             title: "Error",
             description: "Document type configuration not found.",
             variant: "destructive",
         });
-        router.push('/dashboard'); // Redirect if config not found
+        router.push('/dashboard'); 
        }
     }
   }, [documentSlug, documentTypeConfig, router, toast]);
 
 
   if (!documentTypeConfig) {
-    // This will show a loading/skeleton state or a brief "not found" before useEffect kicks in or if slug is truly invalid.
     return (
         <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
             <Loader2 className="h-12 w-12 text-primary animate-spin mb-4" />
@@ -59,9 +59,11 @@ export default function DraftPage() {
     setIsDrafting(true);
     setGeneratedDocument(null);
     setSuggestedCitations(null);
+    setIsEditing(false);
+    setEditedContent('');
 
     const aiInput: DraftLegalDocumentInput = {
-      documentType: documentTypeConfig.aiDocumentType, // Use aiDocumentType from config
+      documentType: documentTypeConfig.aiDocumentType,
       facts: formData.facts || '',
       courtTypeAndLocation: formData.courtTypeAndLocation || '',
       partiesInvolved: formData.partiesInvolved || '',
@@ -72,6 +74,7 @@ export default function DraftPage() {
     try {
       const result = await draftLegalDocument(aiInput);
       setGeneratedDocument(result.draftDocument);
+      setEditedContent(result.draftDocument); // Initialize editedContent
       toast({
         title: "Document Drafted!",
         description: "Your legal document has been generated successfully.",
@@ -92,10 +95,11 @@ export default function DraftPage() {
   };
 
   const handleSuggestCitations = async () => {
-    if (!generatedDocument) {
+    const contentToUse = isEditing ? editedContent : generatedDocument;
+    if (!contentToUse) {
       toast({
         title: "No Document Content",
-        description: "Please draft a document first to suggest citations.",
+        description: "Please draft or edit a document first to suggest citations.",
         variant: "destructive",
       });
       return;
@@ -103,7 +107,7 @@ export default function DraftPage() {
     setIsSuggestingCitations(true);
     setSuggestedCitations(null);
     try {
-      const citationInput: SuggestRelevantCitationsInput = { documentContent: generatedDocument };
+      const citationInput: SuggestRelevantCitationsInput = { documentContent: contentToUse };
       const result: SuggestRelevantCitationsOutput = await suggestRelevantCitations(citationInput);
       setSuggestedCitations(result.citations);
       toast({
@@ -124,6 +128,50 @@ export default function DraftPage() {
       setIsSuggestingCitations(false);
     }
   };
+
+  const handleExportDocument = () => {
+    if (!generatedDocument) return;
+    const blob = new Blob([isEditing ? editedContent : generatedDocument], { type: 'text/plain;charset=utf-8' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `${documentTypeConfig.name.replace(/\s+/g, '_')}_${new Date().toISOString()}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(link.href);
+    toast({ title: "Document Exported", description: "The document has been downloaded." });
+  };
+
+  const handleSaveDraft = () => {
+    if (!generatedDocument) return;
+    // In a real app, this would send the data (isEditing ? editedContent : generatedDocument) to a backend.
+    console.log("Saving draft:", isEditing ? editedContent : generatedDocument);
+    toast({
+      title: "Draft Saved (Simulated)",
+      description: "Your document draft has been saved successfully.",
+      variant: "default"
+    });
+  };
+  
+  const toggleEditMode = () => {
+    if (!generatedDocument) return;
+    if (!isEditing) {
+        setEditedContent(generatedDocument); // Ensure editor has latest content
+    }
+    setIsEditing(!isEditing);
+  };
+
+  const handleSaveEdits = () => {
+    setGeneratedDocument(editedContent);
+    setIsEditing(false);
+    toast({ title: "Edits Saved", description: "Your changes to the document have been applied." });
+  };
+
+  const handleCancelEdits = () => {
+    setEditedContent(generatedDocument || ''); // Reset to original generated document
+    setIsEditing(false);
+    toast({ title: "Edits Cancelled", description: "Your changes have been discarded.", variant: "destructive" });
+  };
   
   const IconComponent = documentTypeConfig.icon;
 
@@ -140,7 +188,7 @@ export default function DraftPage() {
           </div>
           <h1 className="text-4xl font-bold tracking-tight text-foreground">{documentTypeConfig.name}</h1>
         </div>
-        <p className="text-lg text-muted-foreground ml-[calc(2rem+1.75rem)]"> {/* Align with title text */}
+        <p className="text-lg text-muted-foreground ml-[calc(2rem+1.75rem)]">
           Fill in the details below to generate your <span className="font-semibold text-primary">{documentTypeConfig.name}</span> with AI.
         </p>
       </header>
@@ -170,42 +218,62 @@ export default function DraftPage() {
              </Card>
            )}
 
-          {!isDrafting && generatedDocument && (
+          {!isDrafting && (generatedDocument || isEditing) && (
             <Card className="shadow-xl rounded-xl border-border">
               <CardHeader>
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-3">
                     <FileIcon className="h-6 w-6 text-primary"/>
-                    <CardTitle className="text-2xl">Generated Document</CardTitle>
+                    <CardTitle className="text-2xl">{isEditing ? 'Editing Document' : 'Generated Document'}</CardTitle>
                   </div>
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm" disabled className="shadow-sm"><Download className="mr-2 h-4 w-4" /> Export</Button>
-                    <Button variant="outline" size="sm" disabled className="shadow-sm"><Edit3 className="mr-2 h-4 w-4" /> Edit</Button>
-                  </div>
+                  {!isEditing && (
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" onClick={handleExportDocument} disabled={!generatedDocument} className="shadow-sm"><Download className="mr-2 h-4 w-4" /> Export</Button>
+                      <Button variant="outline" size="sm" onClick={toggleEditMode} disabled={!generatedDocument} className="shadow-sm"><Edit3 className="mr-2 h-4 w-4" /> Edit</Button>
+                      <Button variant="outline" size="sm" onClick={handleSaveDraft} disabled={!generatedDocument} className="shadow-sm"><Save className="mr-2 h-4 w-4" /> Save Draft</Button>
+                    </div>
+                  )}
                 </div>
-                <CardDescription>Review the AI-generated document. You can suggest citations or refine further.</CardDescription>
+                <CardDescription>{isEditing ? 'Modify the document content below.' : 'Review the AI-generated document. You can edit, export, save, or suggest citations.'}</CardDescription>
               </CardHeader>
               <CardContent>
-                <ScrollArea className="h-[450px] w-full rounded-md border border-input bg-secondary/30 p-4 shadow-inner">
-                  <pre className="whitespace-pre-wrap text-sm text-foreground font-mono">{generatedDocument}</pre>
-                </ScrollArea>
-                <Button 
-                  onClick={handleSuggestCitations} 
-                  disabled={isSuggestingCitations || !generatedDocument} 
-                  className="w-full mt-6 py-3 text-base bg-accent text-accent-foreground hover:bg-accent/90 shadow-md"
-                >
-                  {isSuggestingCitations ? (
-                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                  ) : (
-                    <BookOpen className="mr-2 h-5 w-5" />
-                  )}
-                  Suggest Relevant Citations
-                </Button>
+                {isEditing ? (
+                  <>
+                    <Textarea
+                      value={editedContent}
+                      onChange={(e) => setEditedContent(e.target.value)}
+                      className="min-h-[450px] w-full rounded-md border border-input bg-secondary/30 p-4 shadow-inner text-sm font-mono focus:border-primary"
+                      placeholder="Edit your document here..."
+                    />
+                    <div className="flex gap-2 mt-4">
+                      <Button onClick={handleSaveEdits} className="bg-primary hover:bg-primary/90 text-primary-foreground"><Save className="mr-2 h-4 w-4" /> Save Edits</Button>
+                      <Button variant="outline" onClick={handleCancelEdits}><XCircle className="mr-2 h-4 w-4" /> Cancel</Button>
+                    </div>
+                  </>
+                ) : (
+                  <ScrollArea className="h-[450px] w-full rounded-md border border-input bg-secondary/30 p-4 shadow-inner">
+                    <pre className="whitespace-pre-wrap text-sm text-foreground font-mono">{generatedDocument}</pre>
+                  </ScrollArea>
+                )}
+                {!isEditing && (
+                  <Button 
+                    onClick={handleSuggestCitations} 
+                    disabled={isSuggestingCitations || !generatedDocument} 
+                    className="w-full mt-6 py-3 text-base bg-accent text-accent-foreground hover:bg-accent/90 shadow-md"
+                  >
+                    {isSuggestingCitations ? (
+                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    ) : (
+                      <BookOpen className="mr-2 h-5 w-5" />
+                    )}
+                    Suggest Relevant Citations
+                  </Button>
+                )}
               </CardContent>
             </Card>
           )}
 
-          {!isDrafting && !generatedDocument && (
+          {!isDrafting && !generatedDocument && !isEditing && (
              <Card className="shadow-xl rounded-xl flex flex-col items-center justify-center p-10 min-h-[400px] bg-card border-border">
                 <Sparkles className="h-16 w-16 text-primary/70 mb-6" />
                 <p className="text-2xl font-semibold text-foreground">Ready to Draft</p>
@@ -256,3 +324,4 @@ export default function DraftPage() {
     </div>
   );
 }
+
