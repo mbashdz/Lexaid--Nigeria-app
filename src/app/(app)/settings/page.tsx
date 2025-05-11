@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { User, Bell, ShieldCheck, Palette, Wrench, Loader2, KeyRound } from "lucide-react";
-import { useToast } from "@/components/ui/use-toast"; // Corrected import path
+import { useToast } from "@/components/ui/use-toast"; 
 import { useAuth } from '@/contexts/AuthContext';
 import { updateUserProfile, getUserProfile, type UserProfile } from '@/services/firestoreService';
 import { updateProfile as updateAuthProfile, sendPasswordResetEmail } from 'firebase/auth';
@@ -49,17 +49,19 @@ export default function SettingsPage() {
           }
         } catch (error) {
           console.error("Error fetching profile:", error);
-          toast({ title: "Error", description: "Could not load profile settings.", variant: "destructive" });
+          toast({ title: "Error Loading Profile", description: (error as Error).message || "Could not load profile settings.", variant: "destructive" });
            setFullName(user.displayName || ''); // Fallback
         } finally {
           setIsLoadingProfile(false);
         }
       };
       fetchProfile();
-    } else if (!user && !firebaseReady) {
+    } else if (!user && !firebaseReady && !isLoadingProfile) { // Ensure isLoadingProfile check to prevent race condition
+        setIsLoadingProfile(false);
+    } else if (firebaseReady && !user && !isLoadingProfile) {
         setIsLoadingProfile(false);
     }
-  }, [user, firebaseReady, toast]);
+  }, [user, firebaseReady, toast, isLoadingProfile]);
 
   const handleSaveProfileChanges = async () => {
     if (!user || !firebaseReady) {
@@ -83,7 +85,7 @@ export default function SettingsPage() {
       });
     } catch (error) {
       console.error("Error saving profile:", error);
-      toast({ title: "Error", description: "Could not save profile changes.", variant: "destructive" });
+      toast({ title: "Error Saving Profile", description: (error as Error).message || "Could not save profile changes.", variant: "destructive" });
     } finally {
       setIsSavingProfile(false);
     }
@@ -105,7 +107,7 @@ export default function SettingsPage() {
       });
     } catch (error) {
       console.error("Error saving notification preferences:", error);
-      toast({ title: "Error", description: "Could not save notification preferences.", variant: "destructive" });
+      toast({ title: "Error Saving Preferences", description: (error as Error).message || "Could not save notification preferences.", variant: "destructive" });
     } finally {
       setIsSavingNotifications(false);
     }
@@ -127,7 +129,7 @@ export default function SettingsPage() {
       });
     } catch (error) {
       console.error("Error sending password reset email:", error);
-      toast({ title: "Error", description: "Could not send password reset email. Please try again later.", variant: "destructive" });
+      toast({ title: "Error Sending Email", description: (error as Error).message || "Could not send password reset email. Please try again later.", variant: "destructive" });
     } finally {
       setIsSendingPasswordReset(false);
     }
@@ -299,7 +301,7 @@ export default function SettingsPage() {
             </CardHeader>
             <CardContent>
             <p className="text-muted-foreground">
-                Firebase is not configured. Please set up your <code>.env.local</code> file.
+                Firebase is not configured. Please set up your <code>.env.local</code> file or check your internet connection.
             </p>
             </CardContent>
         </Card>
@@ -307,4 +309,3 @@ export default function SettingsPage() {
     </div>
   );
 }
-

@@ -79,6 +79,9 @@ export default function CaseManagementPage() {
       fetchCases();
     } else if (!firebaseReady && !user) {
         setIsLoading(false);
+    } else if (firebaseReady && !user) { // Handle case where firebase is ready but no user (e.g. logged out)
+        setIsLoading(false);
+        setCases([]); // Clear cases if user logs out
     }
   }, [user, firebaseReady]);
 
@@ -90,7 +93,7 @@ export default function CaseManagementPage() {
       setCases(userCases);
     } catch (error) {
       console.error("Error fetching cases:", error);
-      toast({ title: "Error", description: "Could not fetch cases.", variant: "destructive" });
+      toast({ title: "Error Fetching Cases", description: (error as Error).message || "Could not fetch cases.", variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
@@ -127,7 +130,11 @@ export default function CaseManagementPage() {
 
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !formData.title.trim()) {
+    if (!user) {
+      toast({ title: "Authentication Error", description: "You must be logged in to save a case.", variant: "destructive"});
+      return;
+    }
+    if (!formData.title.trim()) {
       toast({ title: "Validation Error", description: "Case title is required.", variant: "destructive"});
       return;
     }
@@ -150,7 +157,7 @@ export default function CaseManagementPage() {
       fetchCases(); 
     } catch (error) {
       console.error("Error submitting case:", error);
-      toast({ title: "Error", description: "Could not save the case.", variant: "destructive" });
+      toast({ title: "Error Saving Case", description: (error as Error).message || "Could not save the case. Please check details and try again.", variant: "destructive" });
     } finally {
       setIsSubmitting(false);
     }
@@ -164,7 +171,7 @@ export default function CaseManagementPage() {
       toast({ title: "Case Deleted", description: "The case has been successfully deleted.", variant: "default" });
     } catch (error) {
       console.error("Error deleting case:", error);
-      toast({ title: "Error", description: "Could not delete the case.", variant: "destructive" });
+      toast({ title: "Error Deleting Case", description: (error as Error).message || "Could not delete the case.", variant: "destructive" });
     }
   };
   
@@ -193,7 +200,7 @@ export default function CaseManagementPage() {
             <Briefcase className="h-20 w-20 text-destructive mb-6" />
             <h2 className="text-2xl font-semibold text-destructive mb-2">Service Unavailable</h2>
             <p className="text-muted-foreground mb-6 max-w-md">
-              Case management is currently unavailable due to a configuration issue. Please contact support.
+              Case management is currently unavailable. This might be due to a configuration issue or network problems. Please check your internet connection or contact support if the issue persists.
             </p>
           </CardContent>
         </Card>
@@ -255,8 +262,8 @@ export default function CaseManagementPage() {
                 : 'Try adjusting your search term or status filter.'
               }
             </p>
-             {cases.length === 0 && (
-                <Button size="lg" onClick={openAddDialog} className="bg-primary hover:bg-primary/90 text-primary-foreground py-3 text-base" disabled={!firebaseReady}>
+             {cases.length === 0 && firebaseReady && (
+                <Button size="lg" onClick={openAddDialog} className="bg-primary hover:bg-primary/90 text-primary-foreground py-3 text-base">
                     <PlusCircle className="mr-2 h-5 w-5" /> Add New Case
                 </Button>
              )}
@@ -350,26 +357,26 @@ export default function CaseManagementPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="grid gap-2">
                         <Label htmlFor="caseNumber">Case Number</Label>
-                        <Input id="caseNumber" name="caseNumber" value={formData.caseNumber} onChange={handleFormChange} placeholder="e.g., SUIT/001/2024" />
+                        <Input id="caseNumber" name="caseNumber" value={formData.caseNumber || ''} onChange={handleFormChange} placeholder="e.g., SUIT/001/2024" />
                     </div>
                     <div className="grid gap-2">
                         <Label htmlFor="court">Court</Label>
-                        <Input id="court" name="court" value={formData.court} onChange={handleFormChange} placeholder="e.g., High Court of Lagos State" />
+                        <Input id="court" name="court" value={formData.court || ''} onChange={handleFormChange} placeholder="e.g., High Court of Lagos State" />
                     </div>
                 </div>
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="grid gap-2">
                         <Label htmlFor="clientName">Client Name</Label>
-                        <Input id="clientName" name="clientName" value={formData.clientName} onChange={handleFormChange} placeholder="Your client's name" />
+                        <Input id="clientName" name="clientName" value={formData.clientName || ''} onChange={handleFormChange} placeholder="Your client's name" />
                     </div>
                     <div className="grid gap-2">
                         <Label htmlFor="opponentName">Opponent Name / Other Side</Label>
-                        <Input id="opponentName" name="opponentName" value={formData.opponentName} onChange={handleFormChange} placeholder="Opposing party's name" />
+                        <Input id="opponentName" name="opponentName" value={formData.opponentName || ''} onChange={handleFormChange} placeholder="Opposing party's name" />
                     </div>
                 </div>
                 <div className="grid gap-2">
                     <Label htmlFor="parties">Parties Involved (Detailed)</Label>
-                    <Textarea id="parties" name="parties" value={formData.parties} onChange={handleFormChange} placeholder="Full list of plaintiffs, defendants, applicants, respondents etc." className="min-h-[80px]"/>
+                    <Textarea id="parties" name="parties" value={formData.parties || ''} onChange={handleFormChange} placeholder="Full list of plaintiffs, defendants, applicants, respondents etc." className="min-h-[80px]"/>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     <div className="grid gap-2">
@@ -423,7 +430,7 @@ export default function CaseManagementPage() {
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="caseNotes">Case Notes</Label>
-                  <Textarea id="caseNotes" name="caseNotes" value={formData.caseNotes} onChange={handleFormChange} placeholder="Add any relevant notes, observations, or to-do items for this case..." className="min-h-[120px]"/>
+                  <Textarea id="caseNotes" name="caseNotes" value={formData.caseNotes || ''} onChange={handleFormChange} placeholder="Add any relevant notes, observations, or to-do items for this case..." className="min-h-[120px]"/>
                 </div>
               </div>
               </ScrollArea>

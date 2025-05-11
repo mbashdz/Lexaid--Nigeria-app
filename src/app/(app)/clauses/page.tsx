@@ -67,6 +67,9 @@ export default function ClauseBankPage() {
       fetchClauses();
     } else if (!firebaseReady && !user) {
         setIsLoading(false);
+    } else if (firebaseReady && !user) {
+        setIsLoading(false);
+        setCustomClauses([]);
     }
   }, [user, firebaseReady]);
 
@@ -78,7 +81,7 @@ export default function ClauseBankPage() {
       setCustomClauses(clauses);
     } catch (error) {
       console.error("Error fetching clauses:", error);
-      toast({ title: "Error", description: "Could not fetch custom clauses.", variant: "destructive" });
+      toast({ title: "Error Fetching Clauses", description: (error as Error).message || "Could not fetch custom clauses.", variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
@@ -86,7 +89,11 @@ export default function ClauseBankPage() {
 
   const handleAddClause = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !newClauseTitle.trim() || !newClauseContent.trim()) {
+    if (!user) {
+      toast({ title: "Authentication Error", description: "You must be logged in to add a clause.", variant: "destructive"});
+      return;
+    }
+    if (!newClauseTitle.trim() || !newClauseContent.trim()) {
       toast({ title: "Validation Error", description: "Title and content are required.", variant: "destructive"});
       return;
     }
@@ -101,7 +108,7 @@ export default function ClauseBankPage() {
       fetchClauses(); 
     } catch (error) {
       console.error("Error adding clause:", error);
-      toast({ title: "Error", description: "Could not add the clause.", variant: "destructive" });
+      toast({ title: "Error Adding Clause", description: (error as Error).message || "Could not add the clause.", variant: "destructive" });
     } finally {
       setIsAddingClause(false);
     }
@@ -117,7 +124,11 @@ export default function ClauseBankPage() {
 
   const handleUpdateClause = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingClause || !editingClause.id || !editClauseTitle.trim() || !editClauseContent.trim()) {
+    if (!editingClause || !editingClause.id) {
+        toast({ title: "Error", description: "No clause selected for editing.", variant: "destructive"});
+        return;
+    }
+    if (!editClauseTitle.trim() || !editClauseContent.trim()) {
        toast({ title: "Validation Error", description: "Title and content are required.", variant: "destructive"});
       return;
     }
@@ -134,7 +145,7 @@ export default function ClauseBankPage() {
       fetchClauses();
     } catch (error) {
       console.error("Error updating clause:", error);
-      toast({ title: "Error", description: "Could not update the clause.", variant: "destructive" });
+      toast({ title: "Error Updating Clause", description: (error as Error).message || "Could not update the clause.", variant: "destructive" });
     } finally {
       setIsUpdatingClause(false);
     }
@@ -149,7 +160,7 @@ export default function ClauseBankPage() {
       toast({ title: "Clause Deleted", description: "The clause has been successfully deleted.", variant: "default" });
     } catch (error) {
       console.error("Error deleting clause:", error);
-      toast({ title: "Error", description: "Could not delete the clause.", variant: "destructive" });
+      toast({ title: "Error Deleting Clause", description: (error as Error).message || "Could not delete the clause.", variant: "destructive" });
     }
   };
   
@@ -175,7 +186,7 @@ export default function ClauseBankPage() {
             <BookLock className="h-20 w-20 text-destructive mb-6" />
             <h2 className="text-2xl font-semibold text-destructive mb-2">Service Unavailable</h2>
             <p className="text-muted-foreground mb-6 max-w-md">
-              The clause bank service is currently unavailable due to a configuration issue. Please contact support.
+              The clause bank service is currently unavailable. This might be due to a configuration issue or network problems. Please check your internet connection or contact support if the issue persists.
             </p>
           </CardContent>
         </Card>
@@ -257,6 +268,11 @@ export default function ClauseBankPage() {
             <p className="text-muted-foreground mb-6 max-w-md">
               Start building your library of custom clauses for quick insertion into your legal documents.
             </p>
+            {firebaseReady && (
+                 <Button size="lg" onClick={() => setIsAddDialogOpen(true)} className="bg-primary hover:bg-primary/90 text-primary-foreground py-3 text-base">
+                    <PlusCircle className="mr-2 h-5 w-5" /> Add New Clause
+                </Button>
+            )}
           </CardContent>
         </Card>
       ) : (

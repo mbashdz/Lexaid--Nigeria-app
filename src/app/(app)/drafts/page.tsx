@@ -58,6 +58,9 @@ export default function SavedDraftsPage() {
       fetchDrafts();
     } else if (!firebaseReady && !user) {
       setIsLoading(false); 
+    } else if (firebaseReady && !user) {
+      setIsLoading(false);
+      setSavedDrafts([]);
     }
   }, [user, firebaseReady]);
 
@@ -69,21 +72,24 @@ export default function SavedDraftsPage() {
       setSavedDrafts(drafts);
     } catch (error) {
       console.error("Error fetching drafts:", error);
-      toast({ title: "Error", description: "Could not fetch saved drafts.", variant: "destructive" });
+      toast({ title: "Error Fetching Drafts", description: (error as Error).message || "Could not fetch saved drafts.", variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleDeleteDraft = async (draftId: string) => {
-    if (!user) return;
+    if (!user) {
+        toast({ title: "Authentication Error", description: "You must be logged in to delete a draft.", variant: "destructive"});
+        return;
+    }
     try {
       await deleteDraft(draftId);
       setSavedDrafts(prevDrafts => prevDrafts.filter(draft => draft.id !== draftId));
       toast({ title: "Draft Deleted", description: "The draft has been successfully deleted.", variant: "default" });
     } catch (error) {
       console.error("Error deleting draft:", error);
-      toast({ title: "Error", description: "Could not delete the draft.", variant: "destructive" });
+      toast({ title: "Error Deleting Draft", description: (error as Error).message || "Could not delete the draft.", variant: "destructive" });
     }
   };
   
@@ -101,7 +107,11 @@ export default function SavedDraftsPage() {
 
   const handleSaveDraftChanges = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingDraft || !editingDraft.id || !editDraftTitle.trim() || !editDraftContent.trim()) {
+    if (!editingDraft || !editingDraft.id) {
+        toast({ title: "Error", description: "No draft selected for editing.", variant: "destructive"});
+        return;
+    }
+    if (!editDraftTitle.trim() || !editDraftContent.trim()) {
       toast({ title: "Validation Error", description: "Title and content cannot be empty.", variant: "destructive"});
       return;
     }
@@ -114,7 +124,7 @@ export default function SavedDraftsPage() {
       fetchDrafts(); // Refresh list
     } catch (error) {
       console.error("Error updating draft:", error);
-      toast({ title: "Error", description: "Could not update the draft.", variant: "destructive" });
+      toast({ title: "Error Updating Draft", description: (error as Error).message || "Could not update the draft.", variant: "destructive" });
     } finally {
       setIsSubmittingEdit(false);
     }
@@ -137,7 +147,7 @@ export default function SavedDraftsPage() {
             <FolderOpen className="h-20 w-20 text-destructive mb-6" />
             <h2 className="text-2xl font-semibold text-destructive mb-2">Service Unavailable</h2>
             <p className="text-muted-foreground mb-6 max-w-md">
-              The drafts service is currently unavailable due to a configuration issue. Please contact support.
+              The drafts service is currently unavailable. This might be due to a configuration issue or network problems. Please check your internet connection or contact support if the issue persists.
             </p>
           </CardContent>
         </Card>
@@ -160,7 +170,7 @@ export default function SavedDraftsPage() {
             <p className="text-muted-foreground mb-6 max-w-md">
               It looks like you haven&apos;t saved any drafts. Start drafting a new document to see it here.
             </p>
-            <Button asChild size="lg" className="bg-primary hover:bg-primary/90 text-primary-foreground py-3 text-base">
+            <Button asChild size="lg" className="bg-primary hover:bg-primary/90 text-primary-foreground py-3 text-base" disabled={!firebaseReady}>
               <Link href="/dashboard">
                 <PlusCircle className="mr-2 h-5 w-5" /> Start a New Draft
               </Link>
