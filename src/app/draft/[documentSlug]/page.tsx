@@ -4,7 +4,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { DOCUMENT_TYPES, ALL_DOCUMENT_FIELDS_CONFIG } from '@/config/documents';
+import { DOCUMENT_TYPES, ALL_DOCUMENT_FIELDS_CONFIG, type DocumentField } from '@/config/documents';
 import { DraftingForm, type FormData } from '@/components/draft/DraftingForm';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -74,6 +74,7 @@ export default function DraftPage() {
     setIsEditing(false);
     setEditedContent('');
 
+    // Ensure all fields defined in documentTypeConfig.fields are included, even if optional and empty
     const aiInput: DraftLegalDocumentInput = {
       documentType: documentTypeConfig.aiDocumentType,
       facts: formData.facts || '',
@@ -81,7 +82,20 @@ export default function DraftPage() {
       partiesInvolved: formData.partiesInvolved || '',
       matterCategory: formData.matterCategory || '',
       stageOfProceedings: formData.stageOfProceedings || '',
+      // Add optional fields for Judgement type if they exist in formData
+      issuesForDetermination: formData.issuesForDetermination || undefined,
+      summaryOfArgumentsPlaintiff: formData.summaryOfArgumentsPlaintiff || undefined,
+      summaryOfArgumentsDefendant: formData.summaryOfArgumentsDefendant || undefined,
+      analysisAndDecision: formData.analysisAndDecision || undefined,
     };
+    
+    // Remove undefined keys to keep payload clean for AI
+    Object.keys(aiInput).forEach(key => {
+        if (aiInput[key as keyof DraftLegalDocumentInput] === undefined) {
+            delete aiInput[key as keyof DraftLegalDocumentInput];
+        }
+    });
+
 
     try {
       const result = await draftLegalDocument(aiInput);
@@ -147,7 +161,7 @@ export default function DraftPage() {
     const blob = new Blob([contentToExport], { type: 'text/plain;charset=utf-8' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `${documentTypeConfig.name.replace(/\s+/g, '_')}_${new Date().toISOString()}.txt`;
+    link.download = `${documentTypeConfig.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.txt`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -190,7 +204,9 @@ export default function DraftPage() {
 
     setIsSavingDraft(true);
     try {
-      await addDraft(user.uid, documentTypeConfig.name, documentTypeConfig.name, contentToSave);
+      // Use documentTypeConfig.name as the default title if not derived from form data
+      const draftTitle = documentTypeConfig.name; 
+      await addDraft(user.uid, documentTypeConfig.name, draftTitle, contentToSave);
       toast({
         title: "Draft Saved!",
         description: "Your document draft has been saved successfully to your account.",
@@ -211,23 +227,26 @@ export default function DraftPage() {
   const toggleEditMode = () => {
     if (isEditing) { 
         if (generatedDocument) {
-            setEditedContent(generatedDocument);
+            // If was editing and generatedDocument exists, keep editedContent as is.
+            // User might want to discard changes, which is handled by Cancel.
         }
     } else { 
+        // Entering edit mode
         if (generatedDocument) {
-            setEditedContent(generatedDocument);
+            setEditedContent(generatedDocument); // Initialize edit area with current generated/saved doc
         }
     }
     setIsEditing(!isEditing);
-};
+  };
 
   const handleSaveEdits = () => {
     setGeneratedDocument(editedContent); 
     setIsEditing(false);
-    toast({ title: "Edits Applied", description: "Your changes to the document have been applied locally. Save draft to persist them." });
+    toast({ title: "Edits Applied", description: "Your changes to the document have been applied locally. Remember to save the draft to persist them to your account." });
   };
 
   const handleCancelEdits = () => {
+    // Revert editedContent to the state of generatedDocument (which holds the last "applied" or initially generated text)
     setEditedContent(generatedDocument || ''); 
     setIsEditing(false);
     toast({ title: "Edits Cancelled", description: "Your changes have been discarded.", variant: "destructive" });
@@ -314,17 +333,19 @@ export default function DraftPage() {
                     </div>
                   )}
                 </div>
-                <CardDescription>{isEditing ? 'Modify the document content below.' : 'Review the AI-generated document. You can edit, export, save, or suggest citations.'}</CardDescription>
+                <CardDescription>{isEditing ? 'Modify the document content below. Click "Apply Edits" to see changes reflected for citation suggestions or saving.' : 'Review the AI-generated document. You can edit, export, save, or suggest citations.'}</CardDescription>
               </CardHeader>
               <CardContent>
                 {isEditing ? (
                   <>
-                    <Textarea
-                      value={editedContent}
-                      onChange={(e) => setEditedContent(e.target.value)}
-                      className="min-h-[450px] w-full rounded-md border border-input bg-secondary/30 p-4 shadow-inner text-sm font-mono focus:border-primary"
-                      placeholder="Edit your document here..."
-                    />
+                     <ScrollArea className="h-[450px] w-full rounded-md border border-input bg-secondary/30 shadow-inner">
+                        <Textarea
+                        value={editedContent}
+                        onChange={(e) => setEditedContent(e.target.value)}
+                        className="min-h-[450px] w-full p-4 text-sm font-mono focus:border-primary resize-none border-0"
+                        placeholder="Edit your document here..."
+                        />
+                    </ScrollArea>
                     <div className="flex gap-2 mt-4">
                       <Button onClick={handleSaveEdits} className="bg-primary hover:bg-primary/90 text-primary-foreground"><Save className="mr-2 h-4 w-4" /> Apply Edits</Button>
                       <Button variant="outline" onClick={handleCancelEdits}><XCircle className="mr-2 h-4 w-4" /> Cancel</Button>

@@ -7,11 +7,11 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { User, Bell, ShieldCheck, Palette, Wrench, Loader2 } from "lucide-react";
+import { User, Bell, ShieldCheck, Palette, Wrench, Loader2, KeyRound } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/contexts/AuthContext';
 import { updateUserProfile, getUserProfile, type UserProfile } from '@/services/firestoreService';
-import { updateProfile as updateAuthProfile } from 'firebase/auth';
+import { updateProfile as updateAuthProfile, sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '@/lib/firebase/client';
 
 
@@ -28,6 +28,7 @@ export default function SettingsPage() {
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isSavingNotifications, setIsSavingNotifications] = useState(false);
+  const [isSendingPasswordReset, setIsSendingPasswordReset] = useState(false);
 
   useEffect(() => {
     if (user && firebaseReady) {
@@ -107,6 +108,28 @@ export default function SettingsPage() {
       toast({ title: "Error", description: "Could not save notification preferences.", variant: "destructive" });
     } finally {
       setIsSavingNotifications(false);
+    }
+  };
+
+  const handleChangePassword = async () => {
+    if (!user || !user.email || !firebaseReady) {
+      toast({ title: "Error", description: "User not authenticated, email missing, or Firebase not ready.", variant: "destructive" });
+      return;
+    }
+    setIsSendingPasswordReset(true);
+    try {
+      await sendPasswordResetEmail(auth, user.email);
+      toast({
+        title: "Password Reset Email Sent",
+        description: `A password reset link has been sent to ${user.email}. Please check your inbox.`,
+        variant: "default",
+        duration: 7000,
+      });
+    } catch (error) {
+      console.error("Error sending password reset email:", error);
+      toast({ title: "Error", description: "Could not send password reset email. Please try again later.", variant: "destructive" });
+    } finally {
+      setIsSendingPasswordReset(false);
     }
   };
   
@@ -225,7 +248,7 @@ export default function SettingsPage() {
         </CardFooter>
       </Card>
       
-      {/* Security Settings Card - Placeholder */}
+      {/* Security Settings Card */}
       <Card className="shadow-lg rounded-xl border-border">
         <CardHeader>
           <CardTitle className="text-2xl text-primary flex items-center">
@@ -235,10 +258,16 @@ export default function SettingsPage() {
           <CardDescription>Manage your account security and password settings.</CardDescription>
         </CardHeader>
         <CardContent>
-            <p className="text-muted-foreground">Password change and two-factor authentication settings will be available here soon.</p>
+            <p className="text-muted-foreground">
+              To change your password, click the button below. A password reset link will be sent to your registered email address.
+            </p>
+            <p className="text-sm text-muted-foreground mt-2">Two-factor authentication settings will be available here in a future update.</p>
         </CardContent>
          <CardFooter className="border-t border-border pt-6">
-          <Button onClick={() => toast({ title: "Feature Coming Soon", description: "Security settings will be available soon."})} className="bg-primary hover:bg-primary/90 text-primary-foreground" disabled>Update Security (Soon)</Button>
+          <Button onClick={handleChangePassword} className="bg-primary hover:bg-primary/90 text-primary-foreground" disabled={isSendingPasswordReset || !firebaseReady || !user?.email}>
+            {isSendingPasswordReset ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <KeyRound className="mr-2 h-4 w-4" />}
+            Send Password Reset Email
+          </Button>
         </CardFooter>
       </Card>
 

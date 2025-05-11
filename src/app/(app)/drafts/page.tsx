@@ -4,12 +4,22 @@
 import { useEffect, useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { FolderOpen, PlusCircle, Loader2, Trash2, Eye, FileText as FileIcon } from "lucide-react";
+import { FolderOpen, PlusCircle, Loader2, Trash2, Eye, FileText as FileIcon, Edit2, Save } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from '@/contexts/AuthContext';
-import { getUserDrafts, deleteDraft, type Draft } from '@/services/firestoreService';
+import { getUserDrafts, deleteDraft, updateDraft, type Draft } from '@/services/firestoreService';
 import { useToast } from '@/components/ui/use-toast';
 import { formatDistanceToNow } from 'date-fns';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogClose,
+} from "@/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,21 +32,32 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+
 
 export default function SavedDraftsPage() {
   const { user, isFirebaseConfigured: firebaseReady } = useAuth();
   const { toast } = useToast();
   const [savedDrafts, setSavedDrafts] = useState<Draft[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  
   const [selectedDraftContent, setSelectedDraftContent] = useState<string | null>(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingDraft, setEditingDraft] = useState<Draft | null>(null);
+  const [editDraftTitle, setEditDraftTitle] = useState('');
+  const [editDraftContent, setEditDraftContent] = useState('');
+  const [isSubmittingEdit, setIsSubmittingEdit] = useState(false);
 
 
   useEffect(() => {
     if (user && firebaseReady) {
       fetchDrafts();
     } else if (!firebaseReady && !user) {
-      setIsLoading(false); // Not logged in or firebase not ready
+      setIsLoading(false); 
     }
   }, [user, firebaseReady]);
 
@@ -69,6 +90,34 @@ export default function SavedDraftsPage() {
   const handleViewDraft = (content: string) => {
     setSelectedDraftContent(content);
     setIsViewModalOpen(true);
+  };
+
+  const handleOpenEditModal = (draft: Draft) => {
+    setEditingDraft(draft);
+    setEditDraftTitle(draft.title);
+    setEditDraftContent(draft.content);
+    setIsEditModalOpen(true);
+  };
+
+  const handleSaveDraftChanges = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingDraft || !editingDraft.id || !editDraftTitle.trim() || !editDraftContent.trim()) {
+      toast({ title: "Validation Error", description: "Title and content cannot be empty.", variant: "destructive"});
+      return;
+    }
+    setIsSubmittingEdit(true);
+    try {
+      await updateDraft(editingDraft.id, { title: editDraftTitle, content: editDraftContent });
+      toast({ title: "Draft Updated", description: "Changes saved successfully.", variant: "default" });
+      setIsEditModalOpen(false);
+      setEditingDraft(null);
+      fetchDrafts(); // Refresh list
+    } catch (error) {
+      console.error("Error updating draft:", error);
+      toast({ title: "Error", description: "Could not update the draft.", variant: "destructive" });
+    } finally {
+      setIsSubmittingEdit(false);
+    }
   };
 
 
@@ -125,6 +174,7 @@ export default function SavedDraftsPage() {
               <CardHeader>
                 <CardTitle className="text-xl text-primary line-clamp-2">{draft.title || draft.documentType}</CardTitle>
                 <CardDescription>
+                  Type: {draft.documentType} <br/>
                   Last saved: {draft.lastModified ? formatDistanceToNow(draft.lastModified.toDate(), { addSuffix: true }) : 'N/A'}
                 </CardDescription>
               </CardHeader>
@@ -136,6 +186,9 @@ export default function SavedDraftsPage() {
               <CardFooter className="flex justify-end gap-2 border-t pt-4">
                 <Button variant="outline" size="sm" onClick={() => handleViewDraft(draft.content)} className="text-primary border-primary hover:bg-primary/10">
                     <Eye className="mr-2 h-4 w-4" /> View
+                </Button>
+                 <Button variant="outline" size="sm" onClick={() => handleOpenEditModal(draft)} className="text-primary border-primary hover:bg-primary/10">
+                    <Edit2 className="mr-2 h-4 w-4" /> Edit
                 </Button>
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
@@ -164,13 +217,12 @@ export default function SavedDraftsPage() {
           ))}
         </div>
       )}
+
+      {/* View Draft Modal */}
        <AlertDialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>
         <AlertDialogContent className="max-w-3xl w-full">
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center"><FileIcon className="mr-2 h-5 w-5 text-primary"/> Draft Content</AlertDialogTitle>
-            <AlertDialogDescription>
-              This is a read-only view of your saved draft. Editing saved drafts feature is coming soon.
-            </AlertDialogDescription>
           </AlertDialogHeader>
           <ScrollArea className="h-[60vh] w-full rounded-md border border-input bg-secondary/30 p-4 shadow-inner my-4">
             <pre className="whitespace-pre-wrap text-sm text-foreground font-mono">
@@ -182,6 +234,53 @@ export default function SavedDraftsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Edit Draft Modal */}
+      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+        <DialogContent className="sm:max-w-3xl">
+            <DialogHeader>
+              <DialogTitle className="text-2xl flex items-center"><Edit2 className="mr-2 h-6 w-6 text-primary"/> Edit Draft</DialogTitle>
+              <DialogDescription>
+                Modify the title and content of your saved draft.
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleSaveDraftChanges} className="grid gap-6 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="edit-draft-title" className="text-left">Title</Label>
+                <Input 
+                  id="edit-draft-title" 
+                  value={editDraftTitle}
+                  onChange={(e) => setEditDraftTitle(e.target.value)}
+                  placeholder="Enter draft title" 
+                  required 
+                  className="bg-background border-input focus:border-primary"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit-draft-content" className="text-left">Content</Label>
+                 <ScrollArea className="h-[45vh] w-full rounded-md border border-input shadow-inner">
+                    <Textarea 
+                    id="edit-draft-content" 
+                    value={editDraftContent}
+                    onChange={(e) => setEditDraftContent(e.target.value)}
+                    placeholder="Edit the draft content..." 
+                    required 
+                    className="min-h-[45vh] bg-background border-0 focus:border-primary resize-none"
+                    />
+                </ScrollArea>
+              </div>
+              <DialogFooter>
+                <DialogClose asChild>
+                  <Button type="button" variant="outline" onClick={() => setEditingDraft(null)}>Cancel</Button>
+                </DialogClose>
+                <Button type="submit" disabled={isSubmittingEdit || !editDraftTitle.trim() || !editDraftContent.trim()} className="bg-primary hover:bg-primary/90 text-primary-foreground">
+                  {isSubmittingEdit ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4"/>}
+                  Save Changes
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+      </Dialog>
     </div>
   );
 }

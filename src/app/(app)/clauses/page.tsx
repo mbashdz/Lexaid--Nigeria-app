@@ -7,9 +7,9 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { BookLock, PlusCircle, Wrench, Loader2, Trash2, Edit2, Eye } from "lucide-react";
+import { BookLock, PlusCircle, Wrench, Loader2, Trash2, Edit2, Eye, Save } from "lucide-react";
 import { useAuth } from '@/contexts/AuthContext';
-import { addClause, getUserClauses, deleteClause, type Clause } from '@/services/firestoreService';
+import { addClause, getUserClauses, deleteClause, updateClause, type Clause } from '@/services/firestoreService';
 import { useToast } from '@/components/ui/use-toast';
 import { formatDistanceToNow } from 'date-fns';
 import {
@@ -41,15 +41,25 @@ export default function ClauseBankPage() {
   const { toast } = useToast();
   const [customClauses, setCustomClauses] = useState<Clause[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   
+  // For Adding Clause
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [newClauseTitle, setNewClauseTitle] = useState('');
   const [newClauseContent, setNewClauseContent] = useState('');
   const [newClauseCategory, setNewClauseCategory] = useState('');
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isAddingClause, setIsAddingClause] = useState(false);
 
+  // For Viewing Clause
   const [viewClauseContent, setViewClauseContent] = useState<string | null>(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+
+  // For Editing Clause
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingClause, setEditingClause] = useState<Clause | null>(null);
+  const [editClauseTitle, setEditClauseTitle] = useState('');
+  const [editClauseContent, setEditClauseContent] = useState('');
+  const [editClauseCategory, setEditClauseCategory] = useState('');
+  const [isUpdatingClause, setIsUpdatingClause] = useState(false);
 
 
   useEffect(() => {
@@ -80,7 +90,7 @@ export default function ClauseBankPage() {
       toast({ title: "Validation Error", description: "Title and content are required.", variant: "destructive"});
       return;
     }
-    setIsSubmitting(true);
+    setIsAddingClause(true);
     try {
       await addClause(user.uid, newClauseTitle, newClauseContent, newClauseCategory);
       toast({ title: "Clause Added", description: "New clause saved successfully.", variant: "default" });
@@ -88,14 +98,48 @@ export default function ClauseBankPage() {
       setNewClauseContent('');
       setNewClauseCategory('');
       setIsAddDialogOpen(false);
-      fetchClauses(); // Refresh list
+      fetchClauses(); 
     } catch (error) {
       console.error("Error adding clause:", error);
       toast({ title: "Error", description: "Could not add the clause.", variant: "destructive" });
     } finally {
-      setIsSubmitting(false);
+      setIsAddingClause(false);
     }
   };
+
+  const handleOpenEditDialog = (clause: Clause) => {
+    setEditingClause(clause);
+    setEditClauseTitle(clause.title);
+    setEditClauseContent(clause.content);
+    setEditClauseCategory(clause.category || '');
+    setIsEditDialogOpen(true);
+  };
+
+  const handleUpdateClause = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingClause || !editingClause.id || !editClauseTitle.trim() || !editClauseContent.trim()) {
+       toast({ title: "Validation Error", description: "Title and content are required.", variant: "destructive"});
+      return;
+    }
+    setIsUpdatingClause(true);
+    try {
+      await updateClause(editingClause.id, { 
+        title: editClauseTitle, 
+        content: editClauseContent, 
+        category: editClauseCategory 
+      });
+      toast({ title: "Clause Updated", description: "Clause saved successfully.", variant: "default" });
+      setIsEditDialogOpen(false);
+      setEditingClause(null);
+      fetchClauses();
+    } catch (error) {
+      console.error("Error updating clause:", error);
+      toast({ title: "Error", description: "Could not update the clause.", variant: "destructive" });
+    } finally {
+      setIsUpdatingClause(false);
+    }
+  };
+
 
   const handleDeleteClause = async (clauseId: string) => {
     if (!user) return;
@@ -195,8 +239,8 @@ export default function ClauseBankPage() {
                 <DialogClose asChild>
                   <Button type="button" variant="outline">Cancel</Button>
                 </DialogClose>
-                <Button type="submit" disabled={isSubmitting || !newClauseTitle.trim() || !newClauseContent.trim()} className="bg-primary hover:bg-primary/90 text-primary-foreground">
-                  {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                <Button type="submit" disabled={isAddingClause || !newClauseTitle.trim() || !newClauseContent.trim()} className="bg-primary hover:bg-primary/90 text-primary-foreground">
+                  {isAddingClause && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Save Clause
                 </Button>
               </DialogFooter>
@@ -235,7 +279,9 @@ export default function ClauseBankPage() {
                  <Button variant="outline" size="sm" onClick={() => handleViewClause(clause.content)} className="text-primary border-primary hover:bg-primary/10">
                     <Eye className="mr-2 h-4 w-4" /> View
                 </Button>
-                {/* <Button variant="outline" size="sm" disabled className="text-muted-foreground"><Edit2 className="mr-2 h-4 w-4" /> Edit (Soon)</Button> */}
+                <Button variant="outline" size="sm" onClick={() => handleOpenEditDialog(clause)} className="text-primary border-primary hover:bg-primary/10">
+                    <Edit2 className="mr-2 h-4 w-4" /> Edit
+                </Button>
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
                     <Button variant="destructive" size="sm" className="bg-destructive/90 hover:bg-destructive text-destructive-foreground">
@@ -264,13 +310,11 @@ export default function ClauseBankPage() {
         </div>
       )}
 
+      {/* View Clause Modal */}
       <AlertDialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>
         <AlertDialogContent className="max-w-2xl w-full">
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center"><BookLock className="mr-2 h-5 w-5 text-primary"/> Clause Content</AlertDialogTitle>
-            <AlertDialogDescription>
-              This is a read-only view of your saved clause. Editing clauses feature is coming soon.
-            </AlertDialogDescription>
           </AlertDialogHeader>
           <ScrollArea className="h-[50vh] w-full rounded-md border border-input bg-secondary/30 p-4 shadow-inner my-4">
             <pre className="whitespace-pre-wrap text-sm text-foreground font-mono">
@@ -283,6 +327,58 @@ export default function ClauseBankPage() {
         </AlertDialogContent>
       </AlertDialog>
 
+       {/* Edit Clause Modal */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="sm:max-w-[525px]">
+            <DialogHeader>
+              <DialogTitle className="text-2xl">Edit Clause</DialogTitle>
+              <DialogDescription>
+                Update the details of your custom clause.
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleUpdateClause} className="grid gap-6 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="edit-clause-title" className="text-left">Title</Label>
+                <Input 
+                  id="edit-clause-title" 
+                  value={editClauseTitle}
+                  onChange={(e) => setEditClauseTitle(e.target.value)}
+                  required 
+                  className="bg-background border-input focus:border-primary"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit-clause-content" className="text-left">Content</Label>
+                <Textarea 
+                  id="edit-clause-content" 
+                  value={editClauseContent}
+                  onChange={(e) => setEditClauseContent(e.target.value)}
+                  required 
+                  className="min-h-[150px] bg-background border-input focus:border-primary"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit-clause-category" className="text-left">Category (Optional)</Label>
+                <Input 
+                  id="edit-clause-category" 
+                  value={editClauseCategory}
+                  onChange={(e) => setEditClauseCategory(e.target.value)}
+                  className="bg-background border-input focus:border-primary"
+                />
+              </div>
+              <DialogFooter>
+                <DialogClose asChild>
+                  <Button type="button" variant="outline" onClick={() => setEditingClause(null)}>Cancel</Button>
+                </DialogClose>
+                <Button type="submit" disabled={isUpdatingClause || !editClauseTitle.trim() || !editClauseContent.trim()} className="bg-primary hover:bg-primary/90 text-primary-foreground">
+                  {isUpdatingClause ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4"/>}
+                  Save Changes
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+      </Dialog>
+
 
       <Card className="bg-accent/10 border-accent/30 shadow-sm rounded-xl">
         <CardHeader className="flex flex-row items-center gap-3">
@@ -294,7 +390,7 @@ export default function ClauseBankPage() {
         </CardHeader>
         <CardContent>
           <p className="text-muted-foreground">
-            Soon, you&apos;ll be able to easily search, edit, and insert these clauses directly into your documents. Stay tuned for updates!
+            Soon, you&apos;ll be able to easily search and insert these clauses directly into your documents. Stay tuned for updates!
           </p>
         </CardContent>
       </Card>

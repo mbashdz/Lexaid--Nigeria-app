@@ -5,7 +5,7 @@ import { useEffect }
 from 'react';
 import { SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarFooter, SidebarTrigger, SidebarInset, SidebarMenu, SidebarMenuItem, SidebarMenuButton } from '@/components/ui/sidebar';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Home, Save, HelpCircle, Settings, LogOut, BookLock, CreditCard, Loader2 } from 'lucide-react';
+import { Home, Save, HelpCircle, Settings, LogOut, BookLock, CreditCard, Loader2, Briefcase } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { usePathname, useRouter } from 'next/navigation'; 
@@ -48,6 +48,7 @@ export default function AppLayoutComponent({ children }: AppLayoutProps) {
 
   const navItems = [
     { href: '/dashboard', label: 'Dashboard', icon: Home, tooltip: 'Dashboard' },
+    { href: '/cases', label: 'Case Management', icon: Briefcase, tooltip: 'Manage your cases' },
     { href: '/drafts', label: 'Saved Drafts', icon: Save, tooltip: 'View your saved drafts' },
     { href: '/clauses', label: 'Clause Bank', icon: BookLock, tooltip: 'Manage custom clauses' },
     { href: '/billing', label: 'Billing', icon: CreditCard, tooltip: 'Manage your subscription' },
