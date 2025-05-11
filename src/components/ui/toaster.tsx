@@ -1,6 +1,6 @@
 "use client"
 
-import { useToast } from "@/hooks/use-toast"
+import { useToast } from "@/components/ui/use-toast" // Updated import path
 import {
   Toast,
   ToastClose,

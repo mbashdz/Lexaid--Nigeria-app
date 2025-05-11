@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { User, Bell, ShieldCheck, Palette, Wrench, Loader2, KeyRound } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/components/ui/use-toast"; // Corrected import path
 import { useAuth } from '@/contexts/AuthContext';
 import { updateUserProfile, getUserProfile, type UserProfile } from '@/services/firestoreService';
 import { updateProfile as updateAuthProfile, sendPasswordResetEmail } from 'firebase/auth';
@@ -307,3 +307,4 @@ export default function SettingsPage() {
     </div>
   );
 }
+
