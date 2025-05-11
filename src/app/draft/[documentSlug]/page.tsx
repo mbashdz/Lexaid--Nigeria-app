@@ -4,14 +4,14 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { DOCUMENT_TYPES, ALL_DOCUMENT_FIELDS_CONFIG, type DocumentField } from '@/config/documents';
+import { DOCUMENT_TYPES, ALL_DOCUMENT_FIELDS_CONFIG } from '@/config/documents';
 import { DraftingForm, type FormData } from '@/components/draft/DraftingForm';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { draftLegalDocument, type DraftLegalDocumentInput } from '@/ai/flows/draft-legal-document';
 import { suggestRelevantCitations, type SuggestRelevantCitationsInput, type SuggestRelevantCitationsOutput } from '@/ai/flows/suggest-relevant-citations';
-import { useToast } from '@/components/ui/use-toast'; // Corrected import path
-import { ArrowLeft, Sparkles, BookOpen, Loader2, Download, Edit3, FileText as FileIcon, AlertTriangle, Save, XCircle, ChevronDown } from 'lucide-react';
+import { useToast } from '@/components/ui/use-toast';
+import { ArrowLeft, Sparkles, BookOpen, Loader2, Download, Edit3, FileText as FileIcon, AlertTriangle, Save, XCircle, ChevronDown, FileType, FileDigit } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -74,7 +74,6 @@ export default function DraftPage() {
     setIsEditing(false);
     setEditedContent('');
 
-    // Ensure all fields defined in documentTypeConfig.fields are included, even if optional and empty
     const aiInput: DraftLegalDocumentInput = {
       documentType: documentTypeConfig.aiDocumentType,
       facts: formData.facts || '',
@@ -82,14 +81,12 @@ export default function DraftPage() {
       partiesInvolved: formData.partiesInvolved || '',
       matterCategory: formData.matterCategory || '',
       stageOfProceedings: formData.stageOfProceedings || '',
-      // Add optional fields for Judgement type if they exist in formData
       issuesForDetermination: formData.issuesForDetermination || undefined,
       summaryOfArgumentsPlaintiff: formData.summaryOfArgumentsPlaintiff || undefined,
       summaryOfArgumentsDefendant: formData.summaryOfArgumentsDefendant || undefined,
       analysisAndDecision: formData.analysisAndDecision || undefined,
     };
     
-    // Remove undefined keys to keep payload clean for AI
     Object.keys(aiInput).forEach(key => {
         if (aiInput[key as keyof DraftLegalDocumentInput] === undefined) {
             delete aiInput[key as keyof DraftLegalDocumentInput];
@@ -155,34 +152,58 @@ export default function DraftPage() {
     }
   };
 
-  const handleExportAsTxt = () => {
-    const contentToExport = isEditing ? editedContent : generatedDocument;
-    if (!contentToExport) return;
-    const blob = new Blob([contentToExport], { type: 'text/plain;charset=utf-8' });
+  const downloadTextFile = (content: string, filename: string, mimeType: string = 'text/plain;charset=utf-8') => {
+    if (!content) return;
+    const blob = new Blob([content], { type: mimeType });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `${documentTypeConfig.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.txt`;
+    link.download = filename;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(link.href);
-    toast({ title: "Document Exported as TXT", description: "The document has been downloaded." });
+  };
+  
+  const handleExportAsTxt = () => {
+    const contentToExport = isEditing ? editedContent : generatedDocument;
+    if (!contentToExport) return;
+    downloadTextFile(contentToExport, `${documentTypeConfig.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.txt`);
+    toast({ title: "Document Exported as TXT", description: "The document has been downloaded as a plain text file." });
   };
 
   const handleExportAsDocx = () => {
-    toast({
-      title: "Export as DOCX (Coming Soon)",
-      description: "This feature is under development and will be available soon.",
-      variant: "default",
+    const contentToExport = isEditing ? editedContent : generatedDocument;
+    if (!contentToExport) return;
+    // For actual DOCX, a library like docx or pandoc (server-side) would be needed.
+    // This is a simplified client-side "export" that downloads as .docx but contains plain text.
+    const header = "<!DOCTYPE html><html><head><meta charset='UTF-8'><title>Document</title></head><body><pre style='font-family: \"Times New Roman\", Times, serif; font-size: 12pt;'>";
+    const footer = "</pre></body></html>";
+    const htmlContent = header + contentToExport.replace(/\n/g, '<br>') + footer;
+
+    downloadTextFile(htmlContent, `${documentTypeConfig.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.docx`, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    toast({ 
+        title: "Exported as DOCX (Basic)", 
+        description: "Document downloaded as .docx (basic text format). For advanced formatting, copy to a word processor.",
+        duration: 7000,
     });
   };
 
   const handleExportAsPdf = () => {
+     const contentToExport = isEditing ? editedContent : generatedDocument;
+    if (!contentToExport) {
+        toast({ title: "No Content", description: "Cannot export an empty document.", variant: "destructive" });
+        return;
+    }
+    // Client-side PDF generation is complex. This is a placeholder.
+    // For a real implementation, libraries like jsPDF or a server-side service would be needed.
     toast({
-      title: "Export as PDF (Coming Soon)",
-      description: "This feature is under development and will be available soon.",
+      title: "Export as PDF (Feature in Development)",
+      description: "Direct PDF export is coming soon. For now, you can print to PDF or use the DOCX export.",
       variant: "default",
+      duration: 7000,
     });
+    // As a temporary measure, could offer TXT download with PDF extension, but this is misleading.
+    // downloadTextFile(contentToExport, `${documentTypeConfig.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`);
   };
 
 
@@ -204,7 +225,6 @@ export default function DraftPage() {
 
     setIsSavingDraft(true);
     try {
-      // Use documentTypeConfig.name as the default title if not derived from form data
       const draftTitle = documentTypeConfig.name; 
       await addDraft(user.uid, documentTypeConfig.name, draftTitle, contentToSave);
       toast({
@@ -227,13 +247,13 @@ export default function DraftPage() {
   const toggleEditMode = () => {
     if (isEditing) { 
         if (generatedDocument) {
-            // If was editing and generatedDocument exists, keep editedContent as is.
-            // User might want to discard changes, which is handled by Cancel.
+           // User is exiting edit mode, changes were made in `editedContent`
+           // If they want to save these, they'll click "Apply Edits"
         }
     } else { 
         // Entering edit mode
         if (generatedDocument) {
-            setEditedContent(generatedDocument); // Initialize edit area with current generated/saved doc
+            setEditedContent(generatedDocument); 
         }
     }
     setIsEditing(!isEditing);
@@ -242,14 +262,13 @@ export default function DraftPage() {
   const handleSaveEdits = () => {
     setGeneratedDocument(editedContent); 
     setIsEditing(false);
-    toast({ title: "Edits Applied", description: "Your changes to the document have been applied locally. Remember to save the draft to persist them to your account." });
+    toast({ title: "Edits Applied", description: "Your changes have been applied. Remember to save the draft to your account if you want to persist them." });
   };
 
   const handleCancelEdits = () => {
-    // Revert editedContent to the state of generatedDocument (which holds the last "applied" or initially generated text)
     setEditedContent(generatedDocument || ''); 
     setIsEditing(false);
-    toast({ title: "Edits Cancelled", description: "Your changes have been discarded.", variant: "destructive" });
+    toast({ title: "Edits Cancelled", description: "Your changes have been discarded.", variant: "default" });
   };
   
   const IconComponent = documentTypeConfig.icon;
@@ -314,9 +333,9 @@ export default function DraftPage() {
                                 </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={handleExportAsTxt}>Export as TXT</DropdownMenuItem>
-                                <DropdownMenuItem onClick={handleExportAsDocx}>Export as DOCX (Soon)</DropdownMenuItem>
-                                <DropdownMenuItem onClick={handleExportAsPdf}>Export as PDF (Soon)</DropdownMenuItem>
+                                <DropdownMenuItem onClick={handleExportAsTxt}><FileDigit className="mr-2 h-4 w-4 text-muted-foreground" />Export as TXT</DropdownMenuItem>
+                                <DropdownMenuItem onClick={handleExportAsDocx}><FileType className="mr-2 h-4 w-4 text-muted-foreground" />Export as DOCX (Basic)</DropdownMenuItem>
+                                <DropdownMenuItem onClick={handleExportAsPdf}><FileIcon className="mr-2 h-4 w-4 text-muted-foreground" />Export as PDF (Soon)</DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
                       <Button variant="outline" size="sm" onClick={toggleEditMode} disabled={!generatedDocument} className="shadow-sm"><Edit3 className="mr-2 h-4 w-4" /> Edit</Button>
@@ -333,27 +352,27 @@ export default function DraftPage() {
                     </div>
                   )}
                 </div>
-                <CardDescription>{isEditing ? 'Modify the document content below. Click "Apply Edits" to see changes reflected for citation suggestions or saving.' : 'Review the AI-generated document. You can edit, export, save, or suggest citations.'}</CardDescription>
+                <CardDescription>{isEditing ? 'Modify the document content below. Click "Apply Edits" to use these changes for citation suggestions or saving.' : 'Review the AI-generated document. You can edit, export, save, or suggest citations.'}</CardDescription>
               </CardHeader>
               <CardContent>
                 {isEditing ? (
                   <>
-                     <ScrollArea className="h-[450px] w-full rounded-md border border-input bg-secondary/30 shadow-inner">
+                     <ScrollArea className="h-[450px] w-full rounded-md border border-input bg-background shadow-inner">
                         <Textarea
                         value={editedContent}
                         onChange={(e) => setEditedContent(e.target.value)}
-                        className="min-h-[450px] w-full p-4 text-sm font-mono focus:border-primary resize-none border-0"
+                        className="min-h-[450px] w-full p-4 text-sm font-serif bg-background focus:border-primary resize-none border-0 leading-relaxed"
                         placeholder="Edit your document here..."
                         />
                     </ScrollArea>
                     <div className="flex gap-2 mt-4">
                       <Button onClick={handleSaveEdits} className="bg-primary hover:bg-primary/90 text-primary-foreground"><Save className="mr-2 h-4 w-4" /> Apply Edits</Button>
-                      <Button variant="outline" onClick={handleCancelEdits}><XCircle className="mr-2 h-4 w-4" /> Cancel</Button>
+                      <Button variant="outline" onClick={handleCancelEdits}><XCircle className="mr-2 h-4 w-4" /> Cancel Edits</Button>
                     </div>
                   </>
                 ) : (
-                  <ScrollArea className="h-[450px] w-full rounded-md border border-input bg-secondary/30 p-4 shadow-inner">
-                    <pre className="whitespace-pre-wrap text-sm text-foreground font-mono">{generatedDocument}</pre>
+                  <ScrollArea className="h-[450px] w-full rounded-md border border-input bg-secondary/10 p-6 shadow-inner">
+                    <pre className="whitespace-pre-wrap text-sm text-foreground font-serif leading-relaxed">{generatedDocument}</pre>
                   </ScrollArea>
                 )}
                 {!isEditing && generatedDocument && (
@@ -404,7 +423,7 @@ export default function DraftPage() {
                   <ScrollArea className="h-[250px] w-full rounded-md border border-input bg-secondary/30 p-4 shadow-inner">
                     <ul className="list-disc list-inside space-y-2 text-sm text-foreground">
                       {suggestedCitations.map((citation, index) => (
-                        <li key={index} className="font-mono">{citation}</li>
+                        <li key={index} className="font-serif">{citation}</li>
                       ))}
                     </ul>
                   </ScrollArea>
