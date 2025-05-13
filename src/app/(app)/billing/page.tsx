@@ -34,7 +34,7 @@ const pricingPlansData = [
       "Community support",
     ],
     cta: "Current Plan",
-    isCurrent: (plan: string) => plan === 'Free Trial' || !plan,
+    isCurrent: (planId?: UserProfile['subscriptionPlanId']) => planId === 'trial' || !planId, // Check against planId
     isBase: true,
     highlight: true,
   },
@@ -54,7 +54,7 @@ const pricingPlansData = [
       "Basic clause bank access",
     ],
     cta: "Upgrade to Plus",
-    isCurrent: (plan: string) => plan === 'LexAid Plus',
+    isCurrent: (planId?: UserProfile['subscriptionPlanId']) => planId === 'plus',
   },
   {
     id: "premium",
@@ -72,7 +72,7 @@ const pricingPlansData = [
       "Early access to new features",
     ],
     cta: "Upgrade to Premium",
-    isCurrent: (plan: string) => plan === 'LexAid Premium',
+    isCurrent: (planId?: UserProfile['subscriptionPlanId']) => planId === 'premium',
   },
    {
     id: "enterprise",
@@ -90,7 +90,7 @@ const pricingPlansData = [
       "Volume discounts",
     ],
     cta: "Contact Sales",
-    isCurrent: (plan: string) => plan === 'Enterprise',
+    isCurrent: (planId?: UserProfile['subscriptionPlanId']) => planId === 'enterprise',
   },
 ];
 
@@ -153,7 +153,12 @@ export default function BillingPage() {
         console.log("Flutterwave payment successful:", response);
         if (response.status === "successful" || response.status === "completed") {
           try {
-            await updateUserSubscription(user.uid, plan.name, response.transaction_id, plan.id);
+            // Ensure plan.id is one of the allowed UserProfile['subscriptionPlanId'] types
+            const planIdForFirestore = plan.id as UserProfile['subscriptionPlanId'];
+            if (!['trial', 'plus', 'premium', 'enterprise'].includes(planIdForFirestore)) {
+                throw new Error(`Invalid plan ID: ${plan.id}`);
+            }
+            await updateUserSubscription(user.uid, plan.name, response.transaction_id, planIdForFirestore);
             toast({
               title: "Payment Successful!",
               description: `You have successfully subscribed to ${plan.name}.`,
@@ -180,7 +185,10 @@ export default function BillingPage() {
     });
   };
   
-  const currentPlanName = userProfile?.subscriptionPlan || 'Free Trial';
+  const currentPlanId = userProfile?.subscriptionPlanId || 'trial';
+  const currentPlanDetails = pricingPlansData.find(p => p.id === currentPlanId);
+  const currentPlanName = currentPlanDetails?.name || 'Free Trial';
+
 
   return (
     <>
@@ -204,14 +212,14 @@ export default function BillingPage() {
         <Card className="shadow-lg rounded-xl border-primary/20 bg-primary/5">
           <CardHeader>
             <CardTitle className="text-2xl text-primary flex items-center">
-              {pricingPlansData.find(p => p.isCurrent(currentPlanName))?.icon ? 
-                (React.createElement(pricingPlansData.find(p => p.isCurrent(currentPlanName))!.icon, {className: "mr-3 h-7 w-7"})) :
+              {currentPlanDetails?.icon ? 
+                (React.createElement(currentPlanDetails.icon, {className: "mr-3 h-7 w-7"})) :
                 <Gift className="mr-3 h-7 w-7" /> 
               }
               Current Plan: {currentPlanName}
             </CardTitle>
             <CardDescription>
-              {currentPlanName === 'Free Trial' 
+              {currentPlanId === 'trial' 
                 ? "You are currently on our 1-month free trial. Explore core features and upgrade to unlock more."
                 : `You are subscribed to ${currentPlanName}. Enjoy your premium features!`}
             </CardDescription>
@@ -235,18 +243,19 @@ export default function BillingPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 items-stretch">
             {pricingPlansData.map((plan) => {
               const PlanIcon = plan.icon;
-              const isUserCurrentPlan = plan.isCurrent(currentPlanName);
-              const isTrialPlan = plan.id === "trial";
+              const isUserCurrentPlan = plan.isCurrent(currentPlanId);
+              const isTrialPlanActiveAndThisIsTrial = plan.id === "trial" && currentPlanId === "trial";
+
 
               return (
                 <Card 
                   key={plan.id} 
-                  className={`flex flex-col shadow-lg rounded-xl border ${plan.highlight && currentPlanName === 'Free Trial' ? 'border-accent ring-2 ring-accent' : isUserCurrentPlan ? 'border-primary ring-2 ring-primary' : 'border-border'} ${isUserCurrentPlan ? 'bg-primary/5' : 'bg-card'}`}
+                  className={`flex flex-col shadow-lg rounded-xl border ${plan.highlight && currentPlanId === 'trial' && plan.id !== 'trial' ? 'border-accent ring-2 ring-accent' : isUserCurrentPlan ? 'border-primary ring-2 ring-primary' : 'border-border'} ${isUserCurrentPlan ? 'bg-primary/5' : 'bg-card'}`}
                 >
-                  <CardHeader className={`p-6 ${plan.highlight && currentPlanName === 'Free Trial' ? 'bg-accent/10' : ''}`}>
+                  <CardHeader className={`p-6 ${plan.highlight && currentPlanId === 'trial' && plan.id !== 'trial' ? 'bg-accent/10' : ''}`}>
                     <div className="flex items-center gap-3 mb-2">
-                      <PlanIcon className={`h-8 w-8 ${plan.highlight && currentPlanName === 'Free Trial' ? 'text-accent' : isUserCurrentPlan ? 'text-primary' : 'text-primary'}`} />
-                      <CardTitle className={`text-2xl ${plan.highlight && currentPlanName === 'Free Trial' ? 'text-accent-foreground' : isUserCurrentPlan ? 'text-primary' : 'text-foreground'}`}>{plan.name}</CardTitle>
+                      <PlanIcon className={`h-8 w-8 ${plan.highlight && currentPlanId === 'trial' && plan.id !== 'trial' ? 'text-accent' : isUserCurrentPlan ? 'text-primary' : 'text-primary'}`} />
+                      <CardTitle className={`text-2xl ${plan.highlight && currentPlanId === 'trial' && plan.id !== 'trial' ? 'text-accent-foreground' : isUserCurrentPlan ? 'text-primary' : 'text-foreground'}`}>{plan.name}</CardTitle>
                     </div>
                     <p className="text-3xl font-bold text-foreground">{plan.price} <span className="text-sm font-normal text-muted-foreground">{plan.duration}</span></p>
                     {isUserCurrentPlan && <p className="text-sm text-primary font-semibold mt-1">(Current Plan)</p>}
@@ -265,20 +274,24 @@ export default function BillingPage() {
                     <Button 
                       size="lg" 
                       className={`w-full py-3 text-base 
-                        ${plan.highlight && currentPlanName === 'Free Trial' && !isTrialPlan ? 'bg-accent text-accent-foreground hover:bg-accent/90' 
-                        : isUserCurrentPlan || plan.id === "enterprise" ? 'bg-primary/80 text-primary-foreground cursor-not-allowed' 
+                        ${plan.highlight && currentPlanId === 'trial' && plan.id !== "trial" ? 'bg-accent text-accent-foreground hover:bg-accent/90' 
+                        : isUserCurrentPlan || plan.id === "enterprise" || (plan.id === "trial" && currentPlanId !== "trial") // Disable trial if not on trial
+                        ? 'bg-primary/80 text-primary-foreground cursor-not-allowed' 
                         : 'bg-primary hover:bg-primary/90 text-primary-foreground'}`}
-                      disabled={isUserCurrentPlan || isPaying !== null || !FLUTTERWAVE_PUBLIC_KEY || plan.priceNGN === 0 && plan.id !== "enterprise" || !flutterwaveLoaded}
+                      disabled={isUserCurrentPlan || isPaying !== null || !FLUTTERWAVE_PUBLIC_KEY || (plan.priceNGN === 0 && plan.id !== "enterprise" && plan.id !== "trial") || !flutterwaveLoaded || (plan.id === "trial" && currentPlanId !== "trial") }
                       onClick={() => {
                         if (plan.id === "enterprise") {
                            toast({title: "Enterprise Plan", description: "Please contact sales for Enterprise options."});
                         } else if (plan.priceNGN > 0 && !isUserCurrentPlan) {
                           handlePayment(plan);
+                        } else if (plan.id === "trial" && currentPlanId !== "trial"){
+                            // This case should be disabled, but as a safeguard
+                            toast({title: "Free Trial", description: "Free trial is for new users or after a subscription expires."});
                         }
                       }}
                     >
                       {isPaying === plan.id ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : null}
-                      {isUserCurrentPlan ? "Current Plan" : plan.cta}
+                      {isUserCurrentPlan ? "Current Plan" : (plan.id === "trial" && currentPlanId !== "trial" ? "Trial Unavailable" : plan.cta)}
                     </Button>
                   </CardFooter>
                 </Card>

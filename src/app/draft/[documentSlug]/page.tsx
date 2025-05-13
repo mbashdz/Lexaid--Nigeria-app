@@ -88,8 +88,9 @@ export default function DraftPage() {
     };
     
     Object.keys(aiInput).forEach(key => {
-        if (aiInput[key as keyof DraftLegalDocumentInput] === undefined) {
-            delete aiInput[key as keyof DraftLegalDocumentInput];
+        const K = key as keyof DraftLegalDocumentInput;
+        if (aiInput[K] === undefined || aiInput[K] === '') { // Ensure empty strings are also treated as undefined for optional fields
+            delete aiInput[K];
         }
     });
 
@@ -175,15 +176,25 @@ export default function DraftPage() {
     const contentToExport = isEditing ? editedContent : generatedDocument;
     if (!contentToExport) return;
     // For actual DOCX, a library like docx or pandoc (server-side) would be needed.
-    // This is a simplified client-side "export" that downloads as .docx but contains plain text.
-    const header = "<!DOCTYPE html><html><head><meta charset='UTF-8'><title>Document</title></head><body><pre style='font-family: \"Times New Roman\", Times, serif; font-size: 12pt;'>";
+    // This is a simplified client-side "export" that downloads as .docx but contains plain text styled for Word.
+    const header = `
+      <!DOCTYPE html>
+      <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+      <head><meta charset='utf-8'><title>Export HTML To Doc</title>
+      <style>
+        body { font-family: 'Times New Roman', Times, serif; font-size: 12pt; line-height: 1.5; }
+        pre { white-space: pre-wrap; word-wrap: break-word; font-family: 'Times New Roman', Times, serif; font-size: 12pt; }
+      </style>
+      </head><body><pre>`;
     const footer = "</pre></body></html>";
-    const htmlContent = header + contentToExport.replace(/\n/g, '<br>') + footer;
+    // Preserve line breaks by replacing them with <br> within the pre tag, though pre usually handles it.
+    // The key is `white-space: pre-wrap` in CSS for the pre tag.
+    const htmlContent = header + contentToExport + footer;
 
     downloadTextFile(htmlContent, `${documentTypeConfig.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.docx`, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
     toast({ 
-        title: "Exported as DOCX (Basic)", 
-        description: "Document downloaded as .docx (basic text format). For advanced formatting, copy to a word processor.",
+        title: "Exported as DOCX (Formatted Text)", 
+        description: "Document downloaded. Open with Word or compatible software.",
         duration: 7000,
     });
   };
@@ -194,16 +205,35 @@ export default function DraftPage() {
         toast({ title: "No Content", description: "Cannot export an empty document.", variant: "destructive" });
         return;
     }
-    // Client-side PDF generation is complex. This is a placeholder.
-    // For a real implementation, libraries like jsPDF or a server-side service would be needed.
-    toast({
-      title: "Export as PDF (Feature in Development)",
-      description: "Direct PDF export is coming soon. For now, you can print to PDF or use the DOCX export.",
-      variant: "default",
-      duration: 7000,
-    });
-    // As a temporary measure, could offer TXT download with PDF extension, but this is misleading.
-    // downloadTextFile(contentToExport, `${documentTypeConfig.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`);
+    // Client-side PDF generation is complex for rich text.
+    // A common approach is to use the browser's print to PDF functionality.
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+        printWindow.document.write(`
+            <html>
+                <head>
+                    <title>${documentTypeConfig.name}</title>
+                    <style>
+                        body { font-family: 'Times New Roman', Times, serif; font-size: 12pt; line-height: 1.5; margin: 30px; }
+                        pre { white-space: pre-wrap; word-wrap: break-word; font-family: inherit; font-size: inherit; }
+                    </style>
+                </head>
+                <body>
+                    <pre>${contentToExport}</pre>
+                    <script>
+                        window.onload = function() {
+                            window.print();
+                            // window.onafterprint = function() { window.close(); } // Closes too fast sometimes
+                        }
+                    </script>
+                </body>
+            </html>
+        `);
+        printWindow.document.close();
+        toast({ title: "Print to PDF", description: "Please use your browser's print dialog to save as PDF." });
+    } else {
+        toast({ title: "Print Error", description: "Could not open print window. Please check popup blocker settings.", variant: "destructive"});
+    }
   };
 
 
@@ -225,11 +255,11 @@ export default function DraftPage() {
 
     setIsSavingDraft(true);
     try {
-      const draftTitle = documentTypeConfig.name; 
+      const draftTitle = `${documentTypeConfig.name} - ${new Date().toLocaleDateString()}`; 
       await addDraft(user.uid, documentTypeConfig.name, draftTitle, contentToSave);
       toast({
         title: "Draft Saved!",
-        description: "Your document draft has been saved successfully to your account.",
+        description: "Your document draft has been saved successfully.",
         variant: "default"
       });
     } catch (error) {
@@ -245,16 +275,15 @@ export default function DraftPage() {
   };
   
   const toggleEditMode = () => {
+    if (!generatedDocument && !isEditing) {
+        toast({title: "No Document", description: "Please generate a document before editing.", variant: "default"});
+        return;
+    }
     if (isEditing) { 
-        if (generatedDocument) {
-           // User is exiting edit mode, changes were made in `editedContent`
-           // If they want to save these, they'll click "Apply Edits"
-        }
+       // Exiting edit mode
     } else { 
         // Entering edit mode
-        if (generatedDocument) {
-            setEditedContent(generatedDocument); 
-        }
+        setEditedContent(generatedDocument || ''); 
     }
     setIsEditing(!isEditing);
   };
@@ -262,7 +291,7 @@ export default function DraftPage() {
   const handleSaveEdits = () => {
     setGeneratedDocument(editedContent); 
     setIsEditing(false);
-    toast({ title: "Edits Applied", description: "Your changes have been applied. Remember to save the draft to your account if you want to persist them." });
+    toast({ title: "Edits Applied", description: "Your changes have been applied locally. Remember to save the draft to persist." });
   };
 
   const handleCancelEdits = () => {
@@ -324,21 +353,8 @@ export default function DraftPage() {
                     <FileIcon className="h-6 w-6 text-primary"/>
                     <CardTitle className="text-2xl">{isEditing ? 'Editing Document' : 'Generated Document'}</CardTitle>
                   </div>
-                  {!isEditing && generatedDocument && (
-                    <div className="flex gap-2">
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button variant="outline" size="sm" disabled={!generatedDocument} className="shadow-sm">
-                                <Download className="mr-2 h-4 w-4" /> Export <ChevronDown className="ml-2 h-4 w-4" />
-                                </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={handleExportAsTxt}><FileDigit className="mr-2 h-4 w-4 text-muted-foreground" />Export as TXT</DropdownMenuItem>
-                                <DropdownMenuItem onClick={handleExportAsDocx}><FileType className="mr-2 h-4 w-4 text-muted-foreground" />Export as DOCX (Basic)</DropdownMenuItem>
-                                <DropdownMenuItem onClick={handleExportAsPdf}><FileIcon className="mr-2 h-4 w-4 text-muted-foreground" />Export as PDF (Soon)</DropdownMenuItem>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-                      <Button variant="outline" size="sm" onClick={toggleEditMode} disabled={!generatedDocument} className="shadow-sm"><Edit3 className="mr-2 h-4 w-4" /> Edit</Button>
+                   {!isEditing && generatedDocument && (
+                    <div className="flex items-center gap-2">
                       <Button 
                         variant="outline" 
                         size="sm" 
@@ -349,6 +365,19 @@ export default function DraftPage() {
                         {isSavingDraft ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />} 
                         Save Draft
                       </Button>
+                       <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="outline" size="sm" disabled={!generatedDocument && !editedContent} className="shadow-sm">
+                                <Download className="mr-2 h-4 w-4" /> Export <ChevronDown className="ml-2 h-4 w-4" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={handleExportAsTxt}><FileDigit className="mr-2 h-4 w-4 text-muted-foreground" />Export as TXT</DropdownMenuItem>
+                                <DropdownMenuItem onClick={handleExportAsDocx}><FileType className="mr-2 h-4 w-4 text-muted-foreground" />Export as DOCX</DropdownMenuItem>
+                                <DropdownMenuItem onClick={handleExportAsPdf}><FileIcon className="mr-2 h-4 w-4 text-muted-foreground" />Export as PDF</DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                      <Button variant="outline" size="sm" onClick={toggleEditMode} className="shadow-sm"><Edit3 className="mr-2 h-4 w-4" /> Edit</Button>
                     </div>
                   )}
                 </div>
@@ -375,19 +404,21 @@ export default function DraftPage() {
                     <pre className="whitespace-pre-wrap text-sm text-foreground font-serif leading-relaxed">{generatedDocument}</pre>
                   </ScrollArea>
                 )}
-                {!isEditing && generatedDocument && (
-                  <Button 
-                    onClick={handleSuggestCitations} 
-                    disabled={isSuggestingCitations || !generatedDocument} 
-                    className="w-full mt-6 py-3 text-base bg-accent text-accent-foreground hover:bg-accent/90 shadow-md"
-                  >
-                    {isSuggestingCitations ? (
-                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                    ) : (
-                      <BookOpen className="mr-2 h-5 w-5" />
-                    )}
-                    Suggest Relevant Citations
-                  </Button>
+                 {!isEditing && generatedDocument && (
+                  <div className="flex flex-col sm:flex-row gap-2 mt-6">
+                    <Button 
+                      onClick={handleSuggestCitations} 
+                      disabled={isSuggestingCitations || (!generatedDocument && !editedContent)} 
+                      className="flex-1 py-3 text-base bg-accent text-accent-foreground hover:bg-accent/90 shadow-md"
+                    >
+                      {isSuggestingCitations ? (
+                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                      ) : (
+                        <BookOpen className="mr-2 h-5 w-5" />
+                      )}
+                      Suggest Relevant Citations
+                    </Button>
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -444,4 +475,3 @@ export default function DraftPage() {
     </div>
   );
 }
-

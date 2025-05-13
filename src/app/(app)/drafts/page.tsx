@@ -235,7 +235,7 @@ export default function SavedDraftsPage() {
             <AlertDialogTitle className="flex items-center"><FileIcon className="mr-2 h-5 w-5 text-primary"/> Draft Content</AlertDialogTitle>
           </AlertDialogHeader>
           <ScrollArea className="h-[60vh] w-full rounded-md border border-input bg-secondary/30 p-4 shadow-inner my-4">
-            <pre className="whitespace-pre-wrap text-sm text-foreground font-mono">
+            <pre className="whitespace-pre-wrap text-sm text-foreground font-sans">
               {selectedDraftContent}
             </pre>
           </ScrollArea>
@@ -275,13 +275,13 @@ export default function SavedDraftsPage() {
                     onChange={(e) => setEditDraftContent(e.target.value)}
                     placeholder="Edit the draft content..." 
                     required 
-                    className="min-h-[45vh] bg-background border-0 focus:border-primary resize-none"
+                    className="min-h-[45vh] bg-background border-0 focus:border-primary resize-none font-sans"
                     />
                 </ScrollArea>
               </div>
-              <DialogFooter>
+              <DialogFooter className="pt-6 border-t mt-2">
                 <DialogClose asChild>
-                  <Button type="button" variant="outline" onClick={() => setEditingDraft(null)}>Cancel</Button>
+                  <Button type="button" variant="outline" onClick={() => {setIsEditModalOpen(false); setEditingDraft(null);}}>Cancel</Button>
                 </DialogClose>
                 <Button type="submit" disabled={isSubmittingEdit || !editDraftTitle.trim() || !editDraftContent.trim()} className="bg-primary hover:bg-primary/90 text-primary-foreground">
                   {isSubmittingEdit ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4"/>}

@@ -233,7 +233,7 @@ export default function ClauseBankPage() {
                   onChange={(e) => setNewClauseContent(e.target.value)}
                   placeholder="Enter the full text of the clause..." 
                   required 
-                  className="min-h-[150px] bg-background border-input focus:border-primary"
+                  className="min-h-[150px] bg-background border-input focus:border-primary font-sans"
                 />
               </div>
               <div className="grid gap-2">
@@ -333,7 +333,7 @@ export default function ClauseBankPage() {
             <AlertDialogTitle className="flex items-center"><BookLock className="mr-2 h-5 w-5 text-primary"/> Clause Content</AlertDialogTitle>
           </AlertDialogHeader>
           <ScrollArea className="h-[50vh] w-full rounded-md border border-input bg-secondary/30 p-4 shadow-inner my-4">
-            <pre className="whitespace-pre-wrap text-sm text-foreground font-mono">
+            <pre className="whitespace-pre-wrap text-sm text-foreground font-sans">
               {viewClauseContent}
             </pre>
           </ScrollArea>
@@ -347,7 +347,7 @@ export default function ClauseBankPage() {
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="sm:max-w-[525px]">
             <DialogHeader>
-              <DialogTitle className="text-2xl">Edit Clause</DialogTitle>
+              <DialogTitle className="text-2xl flex items-center"><Edit2 className="mr-2 h-6 w-6 text-primary"/> Edit Clause</DialogTitle>
               <DialogDescription>
                 Update the details of your custom clause.
               </DialogDescription>
@@ -365,13 +365,15 @@ export default function ClauseBankPage() {
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="edit-clause-content" className="text-left">Content</Label>
-                <Textarea 
-                  id="edit-clause-content" 
-                  value={editClauseContent}
-                  onChange={(e) => setEditClauseContent(e.target.value)}
-                  required 
-                  className="min-h-[150px] bg-background border-input focus:border-primary"
-                />
+                 <ScrollArea className="h-[30vh] w-full rounded-md border border-input shadow-inner">
+                    <Textarea 
+                    id="edit-clause-content" 
+                    value={editClauseContent}
+                    onChange={(e) => setEditClauseContent(e.target.value)}
+                    required 
+                    className="min-h-[30vh] bg-background border-0 focus:border-primary resize-none font-sans"
+                    />
+                </ScrollArea>
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="edit-clause-category" className="text-left">Category (Optional)</Label>
@@ -379,12 +381,13 @@ export default function ClauseBankPage() {
                   id="edit-clause-category" 
                   value={editClauseCategory}
                   onChange={(e) => setEditClauseCategory(e.target.value)}
+                  placeholder="e.g., Contract, Litigation"
                   className="bg-background border-input focus:border-primary"
                 />
               </div>
-              <DialogFooter>
+              <DialogFooter className="pt-6 border-t mt-2">
                 <DialogClose asChild>
-                  <Button type="button" variant="outline" onClick={() => setEditingClause(null)}>Cancel</Button>
+                  <Button type="button" variant="outline" onClick={() => {setIsEditDialogOpen(false); setEditingClause(null)}}>Cancel</Button>
                 </DialogClose>
                 <Button type="submit" disabled={isUpdatingClause || !editClauseTitle.trim() || !editClauseContent.trim()} className="bg-primary hover:bg-primary/90 text-primary-foreground">
                   {isUpdatingClause ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4"/>}

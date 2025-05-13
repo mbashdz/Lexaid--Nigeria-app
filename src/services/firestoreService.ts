@@ -52,6 +52,7 @@ export interface UserProfile {
   createdAt?: Timestamp;
   lastModified?: Timestamp;
   subscriptionPlan?: 'Free Trial' | 'LexAid Plus' | 'LexAid Premium' | 'Enterprise' | string; // string for future plans
+  subscriptionPlanId?: 'trial' | 'plus' | 'premium' | 'enterprise'; // To store the plan ID
   subscriptionId?: string; // e.g., Flutterwave transaction ID or your internal subscription ID
   subscriptionStatus?: 'active' | 'inactive' | 'cancelled' | 'past_due'; // More detailed status
   subscriptionStartDate?: Timestamp;
@@ -179,7 +180,7 @@ export async function createUserProfile(user: User): Promise<void> {
   const userDocRef = doc(db, 'users', user.uid);
   const docSnap = await getDoc(userDocRef);
 
-  const profileData: Partial<UserProfile> = { // Use Partial for initial construction flexibility
+  const profileData: Partial<UserProfile> = {
     uid: user.uid,
     email: user.email,
     displayName: user.displayName || user.email?.split('@')[0] || 'New User',
@@ -188,21 +189,19 @@ export async function createUserProfile(user: User): Promise<void> {
   };
 
   if (!docSnap.exists()) {
-    // New user, set createdAt and default subscription
     profileData.createdAt = serverTimestamp() as Timestamp;
-    profileData.emailNotifications = true; // Default value
-    profileData.inAppNotifications = true; // Default value
-    profileData.subscriptionPlan = 'Free Trial'; // Default plan
+    profileData.emailNotifications = true;
+    profileData.inAppNotifications = true;
+    profileData.subscriptionPlan = 'Free Trial';
+    profileData.subscriptionPlanId = 'trial';
     profileData.subscriptionStatus = 'active';
     profileData.subscriptionStartDate = serverTimestamp() as Timestamp;
-    // For a 1-month trial, calculate end date (simplified, more robust logic needed for exact date math)
     const trialEndDate = new Date();
     trialEndDate.setMonth(trialEndDate.getMonth() + 1);
     profileData.subscriptionEndDate = Timestamp.fromDate(trialEndDate);
 
-    await setDoc(userDocRef, profileData as UserProfile); // Cast to UserProfile for setDoc
+    await setDoc(userDocRef, profileData as UserProfile);
   } else {
-    // Existing user, update relevant fields
     const existingData = docSnap.data() as UserProfile;
     const updates: Partial<UserProfile> = { lastModified: serverTimestamp() as Timestamp };
     if (user.displayName && user.displayName !== existingData.displayName) {
@@ -214,19 +213,19 @@ export async function createUserProfile(user: User): Promise<void> {
      if (user.email && user.email !== existingData.email) {
         updates.email = user.email;
     }
-    // If user logs in and had no plan before (e.g. old account before subscription field)
-    if (!existingData.subscriptionPlan) {
+    if (!existingData.subscriptionPlanId) { // Check if essential subscriptionPlanId is missing
         updates.subscriptionPlan = 'Free Trial';
+        updates.subscriptionPlanId = 'trial';
         updates.subscriptionStatus = 'active';
         updates.subscriptionStartDate = serverTimestamp() as Timestamp;
         const trialEndDate = new Date();
         trialEndDate.setMonth(trialEndDate.getMonth() + 1);
         updates.subscriptionEndDate = Timestamp.fromDate(trialEndDate);
     }
-    if (Object.keys(updates).length > 1 || !existingData.subscriptionPlan) { // check if more than just lastModified is updated OR if plan was missing
+    if (Object.keys(updates).length > 1) { // if more than just lastModified updated
         await updateDoc(userDocRef, updates);
     } else {
-        await updateDoc(userDocRef, { lastModified: serverTimestamp() as Timestamp });
+        await updateDoc(userDocRef, { lastModified: serverTimestamp() as Timestamp }); // just update lastModified
     }
   }
 }
@@ -237,32 +236,30 @@ export async function updateUserProfile(userId: string, data: Partial<UserProfil
   await updateDoc(userDocRef, { ...data, lastModified: serverTimestamp() });
 }
 
-export async function updateUserSubscription(userId: string, planName: string, transactionId: string, planId: string): Promise<void> {
+export async function updateUserSubscription(userId: string, planName: string, transactionId: string, planId: UserProfile['subscriptionPlanId']): Promise<void> {
   if (!isFirebaseConfigured) throw new Error("Firebase not configured.");
   const userDocRef = doc(db, 'users', userId);
 
   const subscriptionData: Partial<UserProfile> = {
-    subscriptionPlan: planName as UserProfile['subscriptionPlan'], // Cast to ensure type safety
+    subscriptionPlan: planName as UserProfile['subscriptionPlan'],
+    subscriptionPlanId: planId,
     subscriptionId: transactionId,
     subscriptionStatus: 'active',
     subscriptionStartDate: serverTimestamp() as Timestamp,
     lastModified: serverTimestamp() as Timestamp,
   };
 
-  // Define subscription end date based on plan (simplified: 1 month for paid plans)
-  // In a real app, this would be more robust, e.g., using plan metadata
   const subscriptionEndDate = new Date();
-  if (planId === 'plus' || planId === 'premium') {
+  if (planId === 'plus' || planId === 'premium') { // Monthly plans
     subscriptionEndDate.setMonth(subscriptionEndDate.getMonth() + 1);
     subscriptionData.subscriptionEndDate = Timestamp.fromDate(subscriptionEndDate);
-  } else {
-    // For other cases or if no specific duration is defined for a plan,
-    // you might not set an end date or handle it differently.
-    // For now, remove it if it's not a monthly plan with clear duration.
+  } else if (planId === 'trial') { // Trial plan also has an end date
+    subscriptionEndDate.setMonth(subscriptionEndDate.getMonth() + 1);
+    subscriptionData.subscriptionEndDate = Timestamp.fromDate(subscriptionEndDate);
+  } else { // Enterprise or other custom plans might not have a fixed end date managed this way
     delete subscriptionData.subscriptionEndDate;
   }
   
-
   await updateDoc(userDocRef, subscriptionData);
 }
 
