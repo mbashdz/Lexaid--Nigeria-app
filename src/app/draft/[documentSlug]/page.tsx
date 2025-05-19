@@ -1,5 +1,3 @@
-
-// src/app/draft/[documentSlug]/page.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -76,24 +74,25 @@ export default function DraftPage() {
 
     const aiInput: DraftLegalDocumentInput = {
       documentType: documentTypeConfig.aiDocumentType,
+      // Ensure facts is always included with at least an empty string
       facts: formData.facts || '',
       courtTypeAndLocation: formData.courtTypeAndLocation || '',
       partiesInvolved: formData.partiesInvolved || '',
       matterCategory: formData.matterCategory || '',
       stageOfProceedings: formData.stageOfProceedings || '',
-      issuesForDetermination: formData.issuesForDetermination || undefined,
-      summaryOfArgumentsPlaintiff: formData.summaryOfArgumentsPlaintiff || undefined,
-      summaryOfArgumentsDefendant: formData.summaryOfArgumentsDefendant || undefined,
-      analysisAndDecision: formData.analysisAndDecision || undefined,
+      issuesForDetermination: formData.issuesForDetermination,
+      summaryOfArgumentsPlaintiff: formData.summaryOfArgumentsPlaintiff,
+      summaryOfArgumentsDefendant: formData.summaryOfArgumentsDefendant,
+      analysisAndDecision: formData.analysisAndDecision,
     };
     
+    // Only remove undefined optional fields, never remove required fields like 'facts'
     Object.keys(aiInput).forEach(key => {
         const K = key as keyof DraftLegalDocumentInput;
-        if (aiInput[K] === undefined || aiInput[K] === '') { // Ensure empty strings are also treated as undefined for optional fields
+        if (K !== 'facts' && K !== 'documentType' && aiInput[K] === undefined) {
             delete aiInput[K];
         }
     });
-
 
     try {
       const result = await draftLegalDocument(aiInput);
